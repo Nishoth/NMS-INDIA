@@ -75,23 +75,24 @@ const Cases = () => {
                         <thead className="bg-gray-50/50 dark:bg-white/[0.02] text-gray-500 dark:text-gray-400 font-medium">
                             <tr>
                                 <th className="px-6 py-4">Case Info</th>
-                                <th className="px-6 py-4">Agreement No</th>
+                                <th className="px-6 py-4">Agreement</th>
+                                <th className="px-6 py-4">Asset Details</th>
                                 <th className="px-6 py-4">Status</th>
                                 <th className="px-6 py-4">Claim Amount</th>
-                                <th className="px-6 py-4">Date Added</th>
+                                <th className="px-6 py-4">Date Allocated</th>
                                 <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                             {loading ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                                         Loading cases...
                                     </td>
                                 </tr>
                             ) : filteredCases.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                                         No cases found.
                                     </td>
                                 </tr>
@@ -105,7 +106,12 @@ const Cases = () => {
                                             <div className="text-xs text-gray-500 mt-0.5">{c.ref_no || "No Ref"}</div>
                                         </td>
                                         <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
-                                            {c.agreement_no || "-"}
+                                            <div className="font-medium">{c.agreement_no || "-"}</div>
+                                            <div className="text-xs text-gray-500 mt-0.5">{c.agreement_date ? new Date(c.agreement_date).toLocaleDateString() : ""}</div>
+                                        </td>
+                                        <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
+                                            <div className="font-medium">{c.make || "-"} {c.model || ""}</div>
+                                            <div className="text-xs text-gray-500 mt-0.5">{c.reg_no || ""}</div>
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${c.status === "NEW" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
@@ -119,7 +125,7 @@ const Cases = () => {
                                             {c.claim_amount ? `₹${parseFloat(c.claim_amount).toLocaleString()}` : "-"}
                                         </td>
                                         <td className="px-6 py-4 text-gray-500">
-                                            {new Date(c.created_at).toLocaleDateString()}
+                                            {c.allocated_at ? new Date(c.allocated_at).toLocaleDateString() : new Date(c.created_at).toLocaleDateString()}
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">

@@ -131,6 +131,13 @@ class Case(Base):
     engine_no = Column(String)
     chassis_no = Column(String)
     reg_no = Column(String)
+    
+    first_emi_date = Column(Date)
+    last_emi_date = Column(Date)
+    tenure = Column(Integer)
+    sec_17_applied = Column(String)
+    sec_17_applied_date = Column(Date)
+    sec_17_received_date = Column(Date)
 
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

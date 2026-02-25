@@ -82,16 +82,26 @@ async def import_cases(
                 failed_count += 1
                 continue
                 
-            # Check if case exists with this agreement_no
+            # Check if case exists with this agreement_no AND whether an existing case has the exact case_code
             query = select(Case).where(Case.agreement_no == agreement_no)
             res = await db.execute(query)
-            if res.scalar_one_or_none():
-                # Skip existing cases (or we could update them, but skip for now to avoid constraint errors)
+            existing_case = res.scalar_one_or_none()
+            if existing_case:
+                # If case exists, we can optionally skip or update it. Since skipping was desired initially, we skip for now.
                 failed_count += 1
+                print(f"Skipping row {index}: case with agreement {agreement_no} already exists.")
                 continue
                 
-            # Create a simple unique case code if not present
-            case_code = extract_val(row.get('REF. No.')) or f"CASE-{int(datetime.now().timestamp() * 1000) + index}"
+            # Create a simple unique case code if not present, and ensure global uniqueness
+            case_code = extract_val(row.get('REF. No.'))
+            if not case_code:
+                case_code = f"CASE-{int(datetime.now().timestamp() * 1000) + index}"
+                
+            code_query = select(Case).where(Case.case_code == case_code)
+            code_res = await db.execute(code_query)
+            if code_res.scalar_one_or_none():
+                # Append a timestamp if the Excel provided code is a duplicate
+                case_code = f"{case_code}-{int(datetime.now().timestamp()) + index}"
 
             new_case = Case(
                 case_code=case_code,
@@ -112,7 +122,14 @@ async def import_cases(
                 model=extract_val(row.get('MODEL')),
                 engine_no=extract_val(row.get('ENGINE NO.')),
                 chassis_no=extract_val(row.get('CHASIS NO.')),
-                reg_no=extract_val(row.get('REG. NO'))
+                reg_no=extract_val(row.get('REG. NO')),
+                first_emi_date=extract_val(row.get('FIRST EMI DATE'), 'date'),
+                last_emi_date=extract_val(row.get('LAST EMI DATE'), 'date'),
+                tenure=extract_val(row.get('TENURE'), int),
+                sec_17_applied=extract_val(row.get('SEC 17 ORDER APPLIED(YES/NO)')),
+                sec_17_applied_date=extract_val(row.get('SEC 17 ORDER APPLIED DATE'), 'date'),
+                sec_17_received_date=extract_val(row.get('SEC 17 ORDER RECEIVED DATE'), 'date'),
+                allocated_at=extract_val(row.get('ALLOCATION DATE'), 'date')
             )
             db.add(new_case)
             await db.flush() # Flush to get new_case.id
@@ -170,8 +187,55 @@ async def import_cases(
                     arb_case_no=extract_val(row.get('ARB CASE NO.'))
                 ))
 
+            # Milestones
+            from models import CaseMilestone, MilestoneType
+            milestones_to_add = [
+                (MilestoneType.FIRST_MEETING, row.get('FIRST MEETING / CLAIM STATEMENT (DATE) (30 days from Acceptance)')),
+                (MilestoneType.SECOND_MEETING, row.get('SECOND MEETING (DATE)\n(20 days from First Meeting)')),
+                (MilestoneType.THIRD_MEETING_EXPARTE, row.get('THIRD MEETING/EX-PARTE NOTICE (DATE)\n(20 days from Second Meeting)')),
+                (MilestoneType.EVIDENCE_ARGUMENT, row.get('EVIDENCE / ARGUMENT (DATE)\n(20 days from Third Meeting)')),
+                (MilestoneType.AWARD_DATE, row.get('AWARD DATE\n(20 days from Evidence)')),
+                (MilestoneType.STAMP_PURCHASE_DATE, row.get('STAMP PURCHASE DATE\n(15 days Before Award Date)'))
+            ]
+
+            for m_type, m_date in milestones_to_add:
+                parsed_date = extract_val(m_date, 'date')
+                if parsed_date:
+                    db.add(CaseMilestone(
+                        case_id=new_case.id,
+                        milestone_type=m_type,
+                        planned_date=parsed_date,
+                        actual_date=parsed_date
+                    ))
+            
+            # Notices
+            from models import Notice, NoticeStatus
+            from datetime import datetime as dt_module, time, timezone
+            notices_to_add = [
+                (1, "A", row.get('NOTICE A /DATE OF CN')),
+                (2, "B", row.get('NOTICE B /DATE OF RN')),
+                (3, "C", row.get('NOTICE - C'))
+            ]
+            
+            for n_no, n_type, n_date in notices_to_add:
+                parsed_date = extract_val(n_date, 'date')
+                if parsed_date:
+                    dt = dt_module.combine(parsed_date, time.min).replace(tzinfo=timezone.utc)
+                    db.add(Notice(
+                        case_id=new_case.id,
+                        notice_no=n_no,
+                        notice_type=n_type,
+                        status=NoticeStatus.sent,
+                        created_at=dt
+                    ))
+
+            from sqlalchemy.exc import IntegrityError
             await db.commit()
             success_count += 1
+        except IntegrityError as e:
+            await db.rollback()
+            failed_count += 1
+            print(f"Database IntegrityError on row {index}: {str(e)}")
         except Exception as e:
             await db.rollback()
             failed_count += 1

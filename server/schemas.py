@@ -29,7 +29,11 @@ class UserResponse(UserBase):
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str
+
+class TokenRefresh(BaseModel):
+    refresh_token: str
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -57,6 +61,13 @@ class CaseBase(BaseModel):
     engine_no: Optional[str] = None
     chassis_no: Optional[str] = None
     reg_no: Optional[str] = None
+    
+    first_emi_date: Optional[date] = None
+    last_emi_date: Optional[date] = None
+    tenure: Optional[int] = None
+    sec_17_applied: Optional[str] = None
+    sec_17_applied_date: Optional[date] = None
+    sec_17_received_date: Optional[date] = None
 
 class CaseCreate(CaseBase):
     pass
