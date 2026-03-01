@@ -1,21 +1,50 @@
 import asyncio
 import pandas as pd
-from database import get_db, SessionLocal
-from routers.cases import extract_val
+from datetime import datetime
+from sqlalchemy import select
+from database import SessionLocal
 from models import Case, CaseParty, PartyType, CaseArbitration, CaseMilestone, MilestoneType, Notice, NoticeStatus
-from datetime import datetime as dt_module, time, timezone, datetime
 
-async def test_import():
-    df = pd.read_excel('/Users/balendrankathiriniyan/Desktop/BANK/JLS/client/SAMPLE FOR ADR.xlsx')
+def extract_val(val, val_type=None):
+    if pd.isna(val) or val == '' or str(val).strip().lower() in ['na', 'n/a', 'none']:
+        return None
+    try:
+        if val_type == 'date':
+            return pd.to_datetime(val).date()
+        elif val_type == float:
+            # removing commas or currency symbols if present
+            clean_val = str(val).replace(',', '').replace('₹', '').replace('Rs.', '').strip()
+            return float(clean_val)
+        elif val_type == int:
+            return int(float(str(val).replace(',', '').strip()))
+        return str(val).strip()
+    except:
+        return None
+
+async def import_data():
+    df = pd.read_excel('../client/SAMPLE FOR ADR.xlsx')
+    success_count = 0
+    failed_count = 0
+    total_rows = len(df)
     
     async with SessionLocal() as db:
-        success_count = 0
-        failed_count = 0
-        
+        # SUPER ADMIN USER ID workaround for created_by
+        from models import User
+        result = await db.execute(select(User).limit(1))
+        super_admin = result.scalar_one_or_none()
+        admin_id = super_admin.id if super_admin else None
+
         for index, row in df.iterrows():
             try:
                 agreement_no = extract_val(row.get('AGREEMENT NO'))
                 if not agreement_no:
+                    failed_count += 1
+                    continue
+                    
+                # Check if case exists
+                query = select(Case).where(Case.agreement_no == agreement_no)
+                res = await db.execute(query)
+                if res.scalar_one_or_none():
                     failed_count += 1
                     continue
                     
@@ -28,6 +57,7 @@ async def test_import():
                     agreement_no=agreement_no,
                     agreement_date=extract_val(row.get('AGREEMENT DATE'), 'date'),
                     status="NEW",
+                    created_by=admin_id,
                     claim_amount=extract_val(row.get('CLAIM AMOUNT'), float),
                     claim_date=extract_val(row.get('CLAIM DATE'), 'date'),
                     amount_financed=extract_val(row.get('AMT FINANCE'), float),
@@ -46,10 +76,18 @@ async def test_import():
                     sec_17_applied=extract_val(row.get('SEC 17 ORDER APPLIED(YES/NO)')),
                     sec_17_applied_date=extract_val(row.get('SEC 17 ORDER APPLIED DATE'), 'date'),
                     sec_17_received_date=extract_val(row.get('SEC 17 ORDER RECEIVED DATE'), 'date'),
-                    allocated_at=extract_val(row.get('ALLOCATION DATE'), 'date')
+                    allocated_at=extract_val(row.get('ALLOCATION DATE'), 'date'),
+                    zone=extract_val(row.get('ZONE')),
+                    region=extract_val(row.get('REGION')),
+                    branch_code=extract_val(row.get('BRANCH CODE')),
+                    branch_name=extract_val(row.get('BRANCH NAME')),
+                    product=extract_val(row.get('PRODUCT')),
+                    repossession_status=extract_val(row.get('REPOSSESSION STATUS (YES/NO)')),
+                    dpd=extract_val(row.get('D.P.D')),
+                    allocation_pos=extract_val(row.get('ALLOCATION POS'))
                 )
                 db.add(new_case)
-                await db.flush()
+                await db.flush() 
 
                 # Applicant
                 applicant_name = extract_val(row.get('APPLICANT NAME'))
@@ -59,10 +97,43 @@ async def test_import():
                         party_type=PartyType.applicant,
                         name=applicant_name,
                         father_name=extract_val(row.get('APPLICANT FATHER NAME ')),
-                        address=extract_val(row.get('APPLICANT ADDRESS')),
-                        age=extract_val(row.get('APPLICANT AGE'), int)
+                        address=extract_val(row.get('RESIDENCE ADDRESS 1')),
+                        residence_address_2=extract_val(row.get('RESIDENCE ADDRESS 2')),
+                        residence_address_3=extract_val(row.get('RESIDENCE ADDRESS 3')),
+                        office_address_1=extract_val(row.get('OFFICE ADDRESS 1')),
+                        office_address_2=extract_val(row.get('OFFICE ADDRESS 2 ')),
+                        office_address_3=extract_val(row.get('OFFICE ADDRESS 3')),
+                        city=extract_val(row.get('CITY')),
+                        state=extract_val(row.get('STATE')),
+                        postal_code=extract_val(row.get('PIN CODE')),
+                        age=extract_val(row.get('APPLICANT AGE'), int),
+                        phone=extract_val(row.get('CUSTOMER PHONE 1')),
+                        phone_2=extract_val(row.get('CUSTOMER PHONE 2 / EMAIL ID')),
+                        email=extract_val(row.get('CUSTOMER PHONE 2 / EMAIL ID')) if '@' in str(row.get('CUSTOMER PHONE 2 / EMAIL ID', '')) else None
                     ))
-
+                    
+                # Co-Applicant
+                co_applicant_name = extract_val(row.get('CO-APPLICANT NAME'))
+                if co_applicant_name:
+                    db.add(CaseParty(
+                        case_id=new_case.id,
+                        party_type=PartyType.co_applicant,
+                        name=co_applicant_name,
+                        father_name=extract_val(row.get('CO-APPLICANT FATHER NAME ')),
+                        address=extract_val(row.get('CO-APPLICANT ADDRESS'))
+                    ))
+                    
+                # Guarantor
+                guarantor_name = extract_val(row.get('GUARANTOR NAME'))
+                if guarantor_name:
+                    db.add(CaseParty(
+                        case_id=new_case.id,
+                        party_type=PartyType.guarantor,
+                        name=guarantor_name,
+                        father_name=extract_val(row.get('GUARANTOR FATHERNAME')),
+                        address=extract_val(row.get('GUARANTOR ADDRESS'))
+                    ))
+                    
                 # Arbitration Details
                 inst_name = extract_val(row.get('INSTUTION NAME'))
                 arb_name = extract_val(row.get('ARBITRATOR NAME'))
@@ -87,7 +158,6 @@ async def test_import():
                     (MilestoneType.AWARD_DATE, row.get('AWARD DATE\n(20 days from Evidence)')),
                     (MilestoneType.STAMP_PURCHASE_DATE, row.get('STAMP PURCHASE DATE\n(15 days Before Award Date)'))
                 ]
-
                 for m_type, m_date in milestones_to_add:
                     parsed_date = extract_val(m_date, 'date')
                     if parsed_date:
@@ -99,12 +169,12 @@ async def test_import():
                         ))
                 
                 # Notices
+                from datetime import datetime as dt_module, time, timezone
                 notices_to_add = [
                     (1, "A", row.get('NOTICE A /DATE OF CN')),
                     (2, "B", row.get('NOTICE B /DATE OF RN')),
                     (3, "C", row.get('NOTICE - C'))
                 ]
-                
                 for n_no, n_type, n_date in notices_to_add:
                     parsed_date = extract_val(n_date, 'date')
                     if parsed_date:
@@ -118,15 +188,12 @@ async def test_import():
                         ))
 
                 await db.commit()
-                print(f"Row {index} succeeded")
                 success_count += 1
             except Exception as e:
                 await db.rollback()
                 failed_count += 1
-                import traceback
                 print(f"Failed to import row {index}: {str(e)}")
-                traceback.print_exc()
-                break # stop to see first error
 
-if __name__ == "__main__":
-    asyncio.run(test_import())
+        print(f"Import completed: {success_count} succeeded, {failed_count} failed out of {total_rows}")
+
+asyncio.run(import_data())

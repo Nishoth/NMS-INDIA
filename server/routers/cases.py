@@ -15,6 +15,8 @@ from core.dependencies import get_current_user, require_roles
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
+from sqlalchemy.orm import selectinload
+
 @router.get("/", response_model=List[CaseResponse])
 async def list_cases(
     skip: int = 0, 
@@ -22,7 +24,18 @@ async def list_cases(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = select(Case).order_by(Case.created_at.desc()).offset(skip).limit(limit)
+    query = (
+        select(Case)
+        .options(
+            selectinload(Case.parties),
+            selectinload(Case.notices),
+            selectinload(Case.milestones),
+            selectinload(Case.arbitration)
+        )
+        .order_by(Case.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     if current_user.role == UserRole.advocate:
         query = query.where(Case.assigned_advocate_id == current_user.id)
         
@@ -82,26 +95,16 @@ async def import_cases(
                 failed_count += 1
                 continue
                 
-            # Check if case exists with this agreement_no AND whether an existing case has the exact case_code
+            # Check if case exists with this agreement_no
             query = select(Case).where(Case.agreement_no == agreement_no)
             res = await db.execute(query)
-            existing_case = res.scalar_one_or_none()
-            if existing_case:
-                # If case exists, we can optionally skip or update it. Since skipping was desired initially, we skip for now.
+            if res.scalar_one_or_none():
+                # Skip existing cases (or we could update them, but skip for now to avoid constraint errors)
                 failed_count += 1
-                print(f"Skipping row {index}: case with agreement {agreement_no} already exists.")
                 continue
                 
-            # Create a simple unique case code if not present, and ensure global uniqueness
-            case_code = extract_val(row.get('REF. No.'))
-            if not case_code:
-                case_code = f"CASE-{int(datetime.now().timestamp() * 1000) + index}"
-                
-            code_query = select(Case).where(Case.case_code == case_code)
-            code_res = await db.execute(code_query)
-            if code_res.scalar_one_or_none():
-                # Append a timestamp if the Excel provided code is a duplicate
-                case_code = f"{case_code}-{int(datetime.now().timestamp()) + index}"
+            # Create a simple unique case code if not present
+            case_code = extract_val(row.get('REF. No.')) or f"CASE-{int(datetime.now().timestamp() * 1000) + index}"
 
             new_case = Case(
                 case_code=case_code,
@@ -129,7 +132,15 @@ async def import_cases(
                 sec_17_applied=extract_val(row.get('SEC 17 ORDER APPLIED(YES/NO)')),
                 sec_17_applied_date=extract_val(row.get('SEC 17 ORDER APPLIED DATE'), 'date'),
                 sec_17_received_date=extract_val(row.get('SEC 17 ORDER RECEIVED DATE'), 'date'),
-                allocated_at=extract_val(row.get('ALLOCATION DATE'), 'date')
+                allocated_at=extract_val(row.get('ALLOCATION DATE'), 'date'),
+                zone=extract_val(row.get('ZONE')),
+                region=extract_val(row.get('REGION')),
+                branch_code=extract_val(row.get('BRANCH CODE')),
+                branch_name=extract_val(row.get('BRANCH NAME')),
+                product=extract_val(row.get('PRODUCT')),
+                repossession_status=extract_val(row.get('REPOSSESSION STATUS (YES/NO)')),
+                dpd=extract_val(row.get('D.P.D')),
+                allocation_pos=extract_val(row.get('ALLOCATION POS'))
             )
             db.add(new_case)
             await db.flush() # Flush to get new_case.id
@@ -143,8 +154,19 @@ async def import_cases(
                     party_type=PartyType.applicant,
                     name=applicant_name,
                     father_name=extract_val(row.get('APPLICANT FATHER NAME ')),
-                    address=extract_val(row.get('APPLICANT ADDRESS')),
-                    age=extract_val(row.get('APPLICANT AGE'), int)
+                    address=extract_val(row.get('RESIDENCE ADDRESS 1')),
+                    residence_address_2=extract_val(row.get('RESIDENCE ADDRESS 2')),
+                    residence_address_3=extract_val(row.get('RESIDENCE ADDRESS 3')),
+                    office_address_1=extract_val(row.get('OFFICE ADDRESS 1')),
+                    office_address_2=extract_val(row.get('OFFICE ADDRESS 2 ')),
+                    office_address_3=extract_val(row.get('OFFICE ADDRESS 3')),
+                    city=extract_val(row.get('CITY')),
+                    state=extract_val(row.get('STATE')),
+                    postal_code=extract_val(row.get('PIN CODE')),
+                    age=extract_val(row.get('APPLICANT AGE'), int),
+                    phone=extract_val(row.get('CUSTOMER PHONE 1')),
+                    phone_2=extract_val(row.get('CUSTOMER PHONE 2 / EMAIL ID')),
+                    email=extract_val(row.get('CUSTOMER PHONE 2 / EMAIL ID')) if '@' in str(row.get('CUSTOMER PHONE 2 / EMAIL ID', '')) else None
                 ))
                 
             # Co-Applicant
@@ -229,13 +251,8 @@ async def import_cases(
                         created_at=dt
                     ))
 
-            from sqlalchemy.exc import IntegrityError
             await db.commit()
             success_count += 1
-        except IntegrityError as e:
-            await db.rollback()
-            failed_count += 1
-            print(f"Database IntegrityError on row {index}: {str(e)}")
         except Exception as e:
             await db.rollback()
             failed_count += 1
@@ -266,13 +283,24 @@ async def create_case(
     await db.refresh(new_case)
     return new_case
 
+from sqlalchemy.orm import selectinload
+
 @router.get("/{case_id}", response_model=CaseResponse)
 async def get_case(
     case_id: UUID, 
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = select(Case).where(Case.id == case_id)
+    query = (
+        select(Case)
+        .where(Case.id == case_id)
+        .options(
+            selectinload(Case.parties),
+            selectinload(Case.notices),
+            selectinload(Case.milestones),
+            selectinload(Case.arbitration)
+        )
+    )
     result = await db.execute(query)
     case = result.scalar_one_or_none()
     

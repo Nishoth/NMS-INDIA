@@ -68,9 +68,51 @@ class CaseBase(BaseModel):
     sec_17_applied: Optional[str] = None
     sec_17_applied_date: Optional[date] = None
     sec_17_received_date: Optional[date] = None
+    zone: Optional[str] = None
+    region: Optional[str] = None
+    branch_code: Optional[str] = None
+    branch_name: Optional[str] = None
+    product: Optional[str] = None
+    repossession_status: Optional[str] = None
+    dpd: Optional[str] = None
+    allocation_pos: Optional[str] = None
 
 class CaseCreate(CaseBase):
     pass
+
+# --- Milestones & Arbitration ---
+class CaseMilestoneBase(BaseModel):
+    case_id: UUID
+    milestone_type: MilestoneType
+    planned_date: Optional[date] = None
+    actual_date: Optional[date] = None
+    notes: Optional[str] = None
+
+class CaseMilestoneResponse(CaseMilestoneBase):
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class CaseArbitrationBase(BaseModel):
+    case_id: UUID
+    institution_name: Optional[str] = None
+    arbitrator_name: Optional[str] = None
+    arbitrator_phone: Optional[str] = None
+    arbitrator_email: Optional[str] = None
+    arbitrator_address: Optional[str] = None
+    acceptance_date: Optional[date] = None
+    arb_case_no: Optional[str] = None
+
+class CaseArbitrationResponse(CaseArbitrationBase):
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
 
 class CaseImportResponse(BaseModel):
     message: str
@@ -83,6 +125,12 @@ class CaseResponse(CaseBase):
     created_by: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
+    
+    # Relationships
+    parties: Optional[List['CasePartyResponse']] = []
+    notices: Optional[List['NoticeResponse']] = []
+    milestones: Optional[List['CaseMilestoneResponse']] = []
+    arbitration: Optional['CaseArbitrationResponse'] = None
 
     class Config:
         from_attributes = True
@@ -94,8 +142,17 @@ class CasePartyBase(BaseModel):
     name: str
     father_name: Optional[str] = None
     address: Optional[str] = None
+    residence_address_2: Optional[str] = None
+    residence_address_3: Optional[str] = None
+    office_address_1: Optional[str] = None
+    office_address_2: Optional[str] = None
+    office_address_3: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
     age: Optional[int] = None
     phone: Optional[str] = None
+    phone_2: Optional[str] = None
     email: Optional[str] = None
 
 class CasePartyCreate(CasePartyBase):
