@@ -120,6 +120,14 @@ class CaseImportResponse(BaseModel):
     success_rows: int
     failed_rows: int
 
+class CaseRuleStateResponse(BaseModel):
+    notice_count: int
+    closure_enabled: bool
+    closure_enabled_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
 class CaseResponse(CaseBase):
     id: UUID
     created_by: Optional[UUID] = None
@@ -127,10 +135,14 @@ class CaseResponse(CaseBase):
     updated_at: datetime
     
     # Relationships
+    rules_state: Optional['CaseRuleStateResponse'] = None
     parties: Optional[List['CasePartyResponse']] = []
     notices: Optional[List['NoticeResponse']] = []
     milestones: Optional[List['CaseMilestoneResponse']] = []
     arbitration: Optional['CaseArbitrationResponse'] = None
+    meetings: Optional[List['MeetingResponse']] = []
+    recordings: Optional[List['RecordingResponse']] = []
+    documents: Optional[List['DocumentResponse']] = []
 
     class Config:
         from_attributes = True
@@ -186,6 +198,7 @@ class NoticeResponse(NoticeBase):
     id: UUID
     created_by: Optional[UUID] = None
     created_at: datetime
+    case_code: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -215,6 +228,7 @@ class MeetingResponse(MeetingBase):
     id: UUID
     created_by: Optional[UUID] = None
     created_at: datetime
+    case_code: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -237,6 +251,7 @@ class RecordingResponse(RecordingBase):
     id: UUID
     uploaded_by: Optional[UUID] = None
     uploaded_at: datetime
+    case_code: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -262,6 +277,7 @@ class DocumentResponse(DocumentBase):
     uploaded_by_victim_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
+    case_code: Optional[str] = None
 
     class Config:
         from_attributes = True

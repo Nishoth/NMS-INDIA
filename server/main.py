@@ -32,6 +32,8 @@ app.include_router(documents.router)
 app.include_router(recordings.router)
 app.include_router(audit.router)
 app.include_router(users.router)
+from routers import portal
+app.include_router(portal.router)
 
 @app.get("/")
 async def root():

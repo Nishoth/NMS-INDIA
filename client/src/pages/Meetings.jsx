@@ -1,18 +1,30 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { FiPlus, FiSearch, FiFilter, FiVideo, FiCalendar, FiClock } from "react-icons/fi";
+import { FiPlus, FiSearch, FiFilter, FiVideo, FiCalendar, FiClock, FiLoader, FiExternalLink } from "react-icons/fi";
+import { useApi } from "../hooks/useApi";
+import toast from "react-hot-toast";
 
 const Meetings = () => {
     const [search, setSearch] = useState("");
+    const [meetings, setMeetings] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const { handleRequest, getMeetings } = useApi();
 
-    // Dummy data
-    const meetings = [
-        { id: 1, case_code: "CASE-00123", scheduled_at: "2024-01-20T10:30:00Z", status: "scheduled", provider: "google_meet", meet_url: "https://meet.google.com/abc-defg-hij" },
-        { id: 2, case_code: "CASE-00124", scheduled_at: "2024-01-18T14:00:00Z", status: "completed", provider: "google_meet", meet_url: "https://meet.google.com/xyz-uvw-rst" },
-        { id: 3, case_code: "CASE-00125", scheduled_at: "2024-01-22T11:00:00Z", status: "cancelled", provider: "google_meet", meet_url: null },
-    ];
+    useEffect(() => {
+        const fetchMeetings = async () => {
+            setLoading(true);
+            const { data, error } = await handleRequest(() => getMeetings());
+            if (error) {
+                toast.error("Failed to load meetings");
+            } else if (data) {
+                setMeetings(data);
+            }
+            setLoading(false);
+        };
+        fetchMeetings();
+    }, []);
 
-    const filteredMeetings = meetings.filter(m => m.case_code.toLowerCase().includes(search.toLowerCase()));
+    const filteredMeetings = meetings.filter(m => (m.case_code || "").toLowerCase().includes(search.toLowerCase()));
 
     const getStatusClass = (status) => {
         switch (status) {
@@ -54,69 +66,82 @@ const Meetings = () => {
                     </button>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm whitespace-nowrap">
-                        <thead className="bg-gray-50/50 dark:bg-white/[0.02] text-gray-500 dark:text-gray-400 font-medium">
-                            <tr>
-                                <th className="px-6 py-4">Case Code</th>
-                                <th className="px-6 py-4">Date & Time</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4">Provider</th>
-                                <th className="px-6 py-4 text-right">Join Link</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-white/5">
-                            {filteredMeetings.length === 0 ? (
+                <div className="overflow-x-auto min-h-[300px]">
+                    {loading ? (
+                        <div className="flex justify-center items-center py-20 text-gray-500">
+                            <FiLoader className="w-8 h-8 animate-spin text-primary" />
+                        </div>
+                    ) : (
+                        <table className="w-full text-left text-sm whitespace-nowrap">
+                            <thead className="bg-gray-50/50 dark:bg-white/[0.02] text-gray-500 dark:text-gray-400 font-medium">
                                 <tr>
-                                    <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
-                                        No meetings found.
-                                    </td>
+                                    <th className="px-6 py-4">Case Code</th>
+                                    <th className="px-6 py-4">Date & Time</th>
+                                    <th className="px-6 py-4">Status</th>
+                                    <th className="px-6 py-4">Provider</th>
+                                    <th className="px-6 py-4 text-right">Actions</th>
                                 </tr>
-                            ) : (
-                                filteredMeetings.map((m) => {
-                                    const d = new Date(m.scheduled_at);
-                                    return (
-                                        <tr key={m.id} className="hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors">
-                                            <td className="px-6 py-4">
-                                                <Link to={`/cases/${m.case_code}`} className="font-semibold text-primary hover:underline">
-                                                    {m.case_code}
-                                                </Link>
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
-                                                <div className="flex items-center gap-2">
-                                                    <FiClock className="w-4 h-4 text-gray-400" />
-                                                    <span>{d.toLocaleDateString()} {d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={`px-2.5 py-1 text-xs font-semibold rounded-full capitalize ${getStatusClass(m.status)}`}>
-                                                    {m.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-500 uppercase text-xs tracking-wider">
-                                                {m.provider.replace("_", " ")}
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                {m.meet_url && m.status === 'scheduled' ? (
-                                                    <a
-                                                        href={m.meet_url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors font-medium"
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-white/5">
+                                {filteredMeetings.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
+                                            No meetings found.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredMeetings.map((m) => {
+                                        const d = new Date(m.scheduled_at);
+                                        return (
+                                            <tr key={m.id} className="hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors">
+                                                <td className="px-6 py-4">
+                                                    <Link to={`/cases/${m.case_id}`} className="font-semibold text-primary hover:underline">
+                                                        {m.case_code || "Unknown Case"}
+                                                    </Link>
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
+                                                    <div className="flex items-center gap-2">
+                                                        <FiClock className="w-4 h-4 text-gray-400" />
+                                                        <span>{d.toLocaleDateString()} {d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-2.5 py-1 text-xs font-semibold rounded-full capitalize ${getStatusClass(m.status)}`}>
+                                                        {m.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-500 uppercase text-xs tracking-wider">
+                                                    {m.meet_provider ? m.meet_provider.replace("_", " ") : "-"}
+                                                </td>
+                                                <td className="px-6 py-4 text-right flex gap-3 justify-end">
+                                                    {m.meet_url && m.status === 'scheduled' ? (
+                                                        <a
+                                                            href={m.meet_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors font-medium border border-transparent"
+                                                        >
+                                                            <FiVideo className="w-4 h-4" />
+                                                            Join Call
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-gray-400 flex items-center justify-center h-[34px] px-3">-</span>
+                                                    )}
+                                                    <Link
+                                                        to={`/meetings/${m.id}`}
+                                                        className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors font-medium"
                                                     >
-                                                        <FiVideo className="w-4 h-4" />
-                                                        Join Call
-                                                    </a>
-                                                ) : (
-                                                    <span className="text-gray-400">-</span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    )
-                                })
-                            )}
-                        </tbody>
-                    </table>
+                                                        Details
+                                                        <FiExternalLink className="w-4 h-4" />
+                                                    </Link>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </div>
         </div>

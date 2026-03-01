@@ -7,9 +7,14 @@ import Cases from "./pages/Cases";
 import CaseImport from "./pages/CaseImport";
 import CaseDetail from "./pages/CaseDetail";
 import Notices from "./pages/Notices";
+import NoticeDetail from "./pages/NoticeDetail";
 import Meetings from "./pages/Meetings";
+import MeetingDetail from "./pages/MeetingDetail";
+import MeetingRoom from "./pages/MeetingRoom";
 import Documents from "./pages/Documents";
+import DocumentDetail from "./pages/DocumentDetail";
 import Recordings from "./pages/Recordings";
+import RecordingDetail from "./pages/RecordingDetail";
 import Users from "./pages/Users";
 import Audit from "./pages/Audit";
 import Reports from "./pages/Reports";
@@ -51,6 +56,9 @@ const App = () => {
       <Route path="/portal/:token" element={<PortalAuth />} />
       <Route path="/portal/case" element={<PortalCaseView />} />
 
+      {/* Direct link for Meetings */}
+      <Route path="/meeting/:meetingId" element={<MeetingRoom />} />
+
       {/* Internal Admin Portal Routes */}
       <Route
         path="/"
@@ -72,9 +80,13 @@ const App = () => {
 
         {/* Processing & Actions */}
         <Route path="notices" element={<RequirePermission permission={PERMISSIONS.VIEW_NOTICES}><Notices /></RequirePermission>} />
+        <Route path="notices/:id" element={<RequirePermission permission={PERMISSIONS.VIEW_NOTICES}><NoticeDetail /></RequirePermission>} />
         <Route path="meetings" element={<RequirePermission permission={PERMISSIONS.VIEW_MEETINGS}><Meetings /></RequirePermission>} />
+        <Route path="meetings/:id" element={<RequirePermission permission={PERMISSIONS.VIEW_MEETINGS}><MeetingDetail /></RequirePermission>} />
         <Route path="documents" element={<RequirePermission permission={PERMISSIONS.VIEW_DOCUMENTS}><Documents /></RequirePermission>} />
+        <Route path="documents/:id" element={<RequirePermission permission={PERMISSIONS.VIEW_DOCUMENTS}><DocumentDetail /></RequirePermission>} />
         <Route path="recordings" element={<RequirePermission permission={PERMISSIONS.VIEW_RECORDINGS}><Recordings /></RequirePermission>} />
+        <Route path="recordings/:id" element={<RequirePermission permission={PERMISSIONS.VIEW_RECORDINGS}><RecordingDetail /></RequirePermission>} />
 
         {/* Admin Center */}
         <Route path="admin/users" element={<RequirePermission permission={PERMISSIONS.MANAGE_USERS}><Users /></RequirePermission>} />

@@ -2,28 +2,46 @@ import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FiShield, FiLock, FiChevronRight } from "react-icons/fi";
 import assets from "../assets/assets";
+import { useApi } from "../hooks/useApi";
+import toast from "react-hot-toast";
 
 const PortalAuth = () => {
     const { token } = useParams();
     const navigate = useNavigate();
     const [phoneNumber, setPhoneNumber] = useState("");
     const [otp, setOtp] = useState("");
-    const [step, setStep] = useState(1); // 1 = phone, 2 = otp
+    const [step, setStep] = useState(1);
+    const { handleRequest, portalRequestOtp, portalVerifyOtp } = useApi();
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleSendOtp = (e) => {
+    const handleSendOtp = async (e) => {
         e.preventDefault();
         if (phoneNumber.length >= 10) {
-            setStep(2);
+            setIsLoading(true);
+            const { error } = await handleRequest(() => portalRequestOtp(token, phoneNumber));
+            setIsLoading(false);
+            if (error) {
+                toast.error(error);
+            } else {
+                toast.success("OTP sent to your number!");
+                setStep(2);
+            }
         }
     };
 
-    const handleVerifyOtp = (e) => {
+    const handleVerifyOtp = async (e) => {
         e.preventDefault();
         if (otp.length === 6) {
-            // Dummy success -> redirect to portal case view
-            // Store token/session for victim
-            localStorage.setItem("victim_token", token);
-            navigate("/portal/case");
+            setIsLoading(true);
+            const { data, error } = await handleRequest(() => portalVerifyOtp(token, phoneNumber, otp));
+            setIsLoading(false);
+            if (error) {
+                toast.error(error);
+            } else {
+                localStorage.setItem("victim_token", data.access_token);
+                toast.success("Login successful!");
+                navigate("/portal/case");
+            }
         }
     };
 

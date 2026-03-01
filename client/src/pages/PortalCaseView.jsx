@@ -1,17 +1,63 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { FiClock, FiFileText, FiVideo, FiUploadCloud, FiAlertCircle, FiCheckCircle } from "react-icons/fi";
 import assets from "../assets/assets";
+import { useApi } from "../hooks/useApi";
+import toast from "react-hot-toast";
 
 const PortalCaseView = () => {
     const [activeTab, setActiveTab] = useState("updates");
+    const [caseData, setCaseData] = useState(null);
+    const [meetings, setMeetings] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [uploading, setUploading] = useState(false);
+    const { handleRequest, portalGetCase, portalGetMeetings, portalUploadDoc } = useApi();
+    const navigate = useNavigate();
 
-    const caseData = {
-        code: "CASE-00123",
-        agreement: "AGR-99281",
-        status: "HEARING_SCHEDULED",
-        claimAmount: "1,50,000",
-        nextHearing: "2024-01-20T10:30:00Z"
+    useEffect(() => {
+        const loadData = async () => {
+            const { data: cData, error: cErr } = await handleRequest(() => portalGetCase());
+            const { data: mData } = await handleRequest(() => portalGetMeetings());
+
+            if (cErr) {
+                toast.error("Session expired or unauthorized");
+                navigate("/admin/login"); // Fallback
+            } else {
+                setCaseData(cData);
+                setMeetings(mData || []);
+            }
+            setLoading(false);
+        };
+        loadData();
+    }, []);
+
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("category", "OTHER");
+
+        setUploading(true);
+        const { error } = await handleRequest(() => portalUploadDoc(formData));
+        setUploading(false);
+
+        if (error) {
+            toast.error(error);
+        } else {
+            toast.success("Document uploaded successfully");
+            // Optionally refresh documents list if implemented
+        }
     };
+
+    if (loading) {
+        return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    }
+
+    if (!caseData) {
+        return <div className="min-h-screen flex items-center justify-center">Access Denied</div>;
+    }
 
     const getStatusBadge = (status) => {
         switch (status) {
@@ -36,10 +82,18 @@ const PortalCaseView = () => {
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="text-right hidden sm:block">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white leading-none">Rahul Sharma</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white leading-none">
+                                {caseData.parties?.[0]?.name || "Victim"}
+                            </p>
                             <p className="text-xs text-gray-500 mt-1">Applicant</p>
                         </div>
-                        <button className="text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 px-3 py-1.5 rounded-lg transition-colors">
+                        <button
+                            onClick={() => {
+                                localStorage.removeItem("victim_token");
+                                navigate("/admin/login");
+                            }}
+                            className="text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 px-3 py-1.5 rounded-lg transition-colors"
+                        >
                             Sign Out
                         </button>
                     </div>
@@ -53,31 +107,40 @@ const PortalCaseView = () => {
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-2">
-                                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">{caseData.code}</h2>
+                                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">{caseData.case_code}</h2>
                                 {getStatusBadge(caseData.status)}
                             </div>
-                            <p className="text-gray-500 dark:text-gray-400">Agreement No: <span className="font-medium text-gray-700 dark:text-gray-300">{caseData.agreement}</span></p>
+                            <p className="text-gray-500 dark:text-gray-400">Claim Details</p>
                         </div>
 
                         <div className="bg-gray-50 dark:bg-white/5 rounded-2xl p-4 min-w-[200px] border border-gray-100 dark:border-white/5">
                             <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Claim Amount</p>
-                            <p className="text-2xl font-bold text-gray-900 dark:text-white">₹{caseData.claimAmount}</p>
+                            <p className="text-2xl font-bold text-gray-900 dark:text-white">₹{caseData.claim_amount || 0}</p>
                         </div>
                     </div>
 
                     {/* Action Alert */}
-                    <div className="mt-8 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded-2xl p-4 flex items-start sm:items-center gap-4">
-                        <div className="bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-300 p-2 rounded-xl mt-1 sm:mt-0">
-                            <FiVideo className="w-5 h-5" />
+                    {meetings.length > 0 && (
+                        <div className="mt-8 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded-2xl p-4 flex items-start sm:items-center gap-4">
+                            <div className="bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-300 p-2 rounded-xl mt-1 sm:mt-0">
+                                <FiVideo className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="font-semibold text-blue-900 dark:text-blue-100">Upcoming Virtual Hearing</h4>
+                                <p className="text-sm text-blue-800/80 dark:text-blue-200/80 mt-0.5">Scheduled for {new Date(meetings[0].scheduled_at).toLocaleString()}</p>
+                            </div>
+                            {meetings[0].meet_url && (
+                                <a
+                                    href={meetings[0].meet_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="whitespace-nowrap px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors shadow-sm text-sm"
+                                >
+                                    Join Call
+                                </a>
+                            )}
                         </div>
-                        <div className="flex-1">
-                            <h4 className="font-semibold text-blue-900 dark:text-blue-100">Upcoming Virtual Hearing</h4>
-                            <p className="text-sm text-blue-800/80 dark:text-blue-200/80 mt-0.5">Scheduled for {new Date(caseData.nextHearing).toLocaleString()}</p>
-                        </div>
-                        <button className="whitespace-nowrap px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors shadow-sm text-sm">
-                            Join Call
-                        </button>
-                    </div>
+                    )}
                 </div>
 
                 {/* Portal Tabs */}
@@ -137,30 +200,31 @@ const PortalCaseView = () => {
                             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Uploaded Files</h3>
 
                             <div className="space-y-3">
-                                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-white dark:bg-[#1f2937] rounded-lg shadow-sm">
-                                            <FiFileText className="w-5 h-5 text-gray-400" />
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-gray-900 dark:text-white text-sm">Aadhar_Card.pdf</p>
-                                            <p className="text-xs text-gray-500">ID Proof • 1.2 MB</p>
-                                        </div>
-                                    </div>
-                                    <button className="text-sm text-primary font-medium hover:underline">Download</button>
+                                <div className="text-center py-8 text-gray-500">
+                                    <FiFileText className="w-10 h-10 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+                                    <p>Documents uploaded will appear internally.</p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="bg-primary/5 dark:bg-primary/10 rounded-3xl p-6 border border-primary/20 flex flex-col items-center justify-center text-center h-64">
+                        <div className="bg-primary/5 dark:bg-primary/10 rounded-3xl p-6 border border-primary/20 flex flex-col items-center justify-center text-center h-64 relative overflow-hidden group">
                             <div className="w-16 h-16 bg-white dark:bg-[#1f2937] rounded-full flex items-center justify-center text-primary shadow-sm mb-4">
                                 <FiUploadCloud className="w-8 h-8" />
                             </div>
                             <h3 className="font-bold text-gray-900 dark:text-white mb-2">Submit Document</h3>
                             <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">Upload requested proofs or replies securely.</p>
-                            <button className="w-full py-2.5 bg-primary text-white font-medium rounded-xl hover:bg-primary-dark transition-colors shadow-sm">
-                                Browse Files
-                            </button>
+                            <div className="relative">
+                                <label className="w-full py-2.5 px-6 bg-primary text-white font-medium rounded-xl hover:bg-primary-dark transition-colors shadow-sm cursor-pointer inline-block">
+                                    {uploading ? "Uploading..." : "Browse Files"}
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        name="file"
+                                        onChange={handleFileUpload}
+                                        disabled={uploading}
+                                    />
+                                </label>
+                            </div>
                         </div>
                     </div>
                 )}

@@ -1,20 +1,47 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { FiUploadCloud, FiSearch, FiFilter, FiFile, FiDownload, FiTrash2 } from "react-icons/fi";
+import { FiUploadCloud, FiSearch, FiFilter, FiFile, FiDownload, FiTrash2, FiLoader } from "react-icons/fi";
+import { useApi } from "../hooks/useApi";
+import toast from "react-hot-toast";
 
 const Documents = () => {
     const [search, setSearch] = useState("");
+    const [docs, setDocs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const { handleRequest, getDocuments, downloadDocument } = useApi();
 
-    // Dummy data
-    const docs = [
-        { id: 1, case_code: "CASE-00123", file_name: "Aadhar_Card.pdf", category: "ID_PROOF", source: "victim", size: "1.2 MB", uploaded_at: "2024-01-12T10:00:00Z" },
-        { id: 2, case_code: "CASE-00123", file_name: "Internal_Notes.docx", category: "OTHER", source: "internal", size: "245 KB", uploaded_at: "2024-01-13T11:30:00Z" },
-        { id: 3, case_code: "CASE-00124", file_name: "Loan_Agreement_Signed.pdf", category: "LOAN_DOC", source: "internal", size: "4.5 MB", uploaded_at: "2024-01-15T09:15:00Z" },
-    ];
+    useEffect(() => {
+        const fetchDocs = async () => {
+            setLoading(true);
+            const { data, error } = await handleRequest(() => getDocuments());
+            if (error) {
+                toast.error("Failed to fetch documents");
+            } else if (data) {
+                setDocs(data);
+            }
+            setLoading(false);
+        };
+        fetchDocs();
+    }, []);
+
+    const handleDocumentDownload = async (documentId, fileName) => {
+        const { data, error } = await handleRequest(() => downloadDocument(documentId));
+        if (error) {
+            toast.error("Failed to download document");
+        } else if (data) {
+            const url = window.URL.createObjectURL(new Blob([data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', fileName || 'document.pdf');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
+    };
 
     const filteredDocs = docs.filter(d =>
         d.file_name.toLowerCase().includes(search.toLowerCase()) ||
-        d.case_code.toLowerCase().includes(search.toLowerCase())
+        (d.case_code && d.case_code.toLowerCase().includes(search.toLowerCase()))
     );
 
     return (
@@ -24,10 +51,6 @@ const Documents = () => {
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Documents</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage all internal and victim-uploaded documents</p>
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary-dark transition-colors text-sm font-medium shadow-sm hover:shadow-md">
-                    <FiUploadCloud className="w-4 h-4" />
-                    Upload Document
-                </button>
             </div>
 
             <div className="bg-white dark:bg-[#1f2937] rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 overflow-hidden">
@@ -42,10 +65,6 @@ const Documents = () => {
                             className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-white/5 border border-transparent focus:border-primary/50 focus:ring-2 focus:ring-primary/10 rounded-xl outline-none transition-all dark:text-white"
                         />
                     </div>
-                    <button className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-sm font-medium text-gray-700 dark:text-gray-300">
-                        <FiFilter className="w-4 h-4" />
-                        Category: All
-                    </button>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -61,7 +80,14 @@ const Documents = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-white/5">
-                            {filteredDocs.length === 0 ? (
+                            {loading ? (
+                                <tr>
+                                    <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                                        <FiLoader className="w-6 h-6 animate-spin mx-auto text-primary mb-2" />
+                                        Loading documents...
+                                    </td>
+                                </tr>
+                            ) : filteredDocs.length === 0 ? (
                                 <tr>
                                     <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
                                         No documents found.
@@ -73,41 +99,52 @@ const Documents = () => {
                                         <td className="px-6 py-4 flex items-center gap-3">
                                             <FiFile className="w-5 h-5 text-gray-400" />
                                             <div>
-                                                <p className="font-medium text-gray-900 dark:text-white">{d.file_name}</p>
-                                                <p className="text-xs text-gray-500">{d.size}</p>
+                                                <Link to={`/documents/${d.id}`} className="font-medium text-gray-900 dark:text-white hover:text-primary transition-colors">
+                                                    {d.file_name}
+                                                </Link>
+                                                <p className="text-xs text-gray-500 mt-1">{(d.size_bytes / (1024 * 1024)).toFixed(2)} MB</p>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <Link to={`/cases/${d.case_code}`} className="font-semibold text-primary hover:underline">
-                                                {d.case_code}
-                                            </Link>
+                                            {d.case_code ? (
+                                                <Link to={`/cases/${d.case_id}`} className="font-semibold text-primary hover:underline">
+                                                    {d.case_code}
+                                                </Link>
+                                            ) : (
+                                                <span className="text-gray-400">Unlinked</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className="px-2 py-1 bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-300 rounded text-xs">
-                                                {d.category.replace("_", " ")}
+                                                {d.category ? d.category.replace("_", " ") : "OTHER"}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2 py-1 rounded text-xs font-medium uppercase ${d.source === 'victim'
-                                                    ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                                                    : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                                                ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                                                : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                                 }`}>
                                                 {d.source}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-gray-500">
-                                            {new Date(d.uploaded_at).toLocaleDateString()}
+                                            {new Date(d.created_at).toLocaleDateString()}
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
-                                                <button className="p-2 text-gray-400 hover:text-primary rounded-lg hover:bg-primary/5 transition-colors" title="Download">
+                                                <button
+                                                    onClick={() => handleDocumentDownload(d.id, d.file_name)}
+                                                    className="p-2 text-gray-400 hover:text-primary rounded-lg hover:bg-primary/5 transition-colors"
+                                                    title="Download"
+                                                >
                                                     <FiDownload className="w-4 h-4" />
                                                 </button>
-                                                {d.source === 'internal' && (
-                                                    <button className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors" title="Delete">
-                                                        <FiTrash2 className="w-4 h-4" />
-                                                    </button>
-                                                )}
+                                                <Link
+                                                    to={`/documents/${d.id}`}
+                                                    className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10 transition-colors"
+                                                >
+                                                    View Details
+                                                </Link>
                                             </div>
                                         </td>
                                     </tr>

@@ -1,0 +1,233 @@
+import React, { useState, useEffect } from "react";
+import { useParams, Link } from "react-router-dom";
+import { FiArrowLeft, FiClock, FiCheckCircle, FiAlertCircle, FiSend, FiFileText, FiLink, FiVideo, FiLoader } from "react-icons/fi";
+import { useApi } from "../hooks/useApi";
+import toast from "react-hot-toast";
+
+const NoticeDetail = () => {
+    const { id } = useParams();
+    const [notice, setNotice] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const { handleRequest, getNotice } = useApi();
+
+    useEffect(() => {
+        const fetchNotice = async () => {
+            setLoading(true);
+            const { data, error } = await handleRequest(() => getNotice(id));
+            if (error) {
+                toast.error("Failed to load notice details");
+            } else if (data) {
+                setNotice(data);
+            }
+            setLoading(false);
+        };
+        fetchNotice();
+    }, [id]);
+
+    const getStatusIcon = (status) => {
+        switch (status) {
+            case 'sent': return <FiSend className="w-5 h-5 text-blue-500" />;
+            case 'draft': return <FiClock className="w-5 h-5 text-yellow-500" />;
+            case 'delivered': return <FiCheckCircle className="w-5 h-5 text-green-500" />;
+            case 'failed': return <FiAlertCircle className="w-5 h-5 text-red-500" />;
+            default: return null;
+        }
+    };
+
+    const getStatusClass = (status) => {
+        switch (status) {
+            case 'sent': return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
+            case 'draft': return "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+            case 'delivered': return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
+            case 'failed': return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+            default: return "bg-gray-100 text-gray-700";
+        }
+    };
+
+    const formatNoticeNo = (caseId, noticeType) => {
+        if (!caseId) return `NOT-00000-${noticeType || 'A'}`;
+        const hash = parseInt(caseId.replace(/-/g, '').substring(0, 8), 16) % 100000;
+        const paddedHash = String(hash).padStart(5, '0');
+        return `NOT-${paddedHash}-${noticeType || 'A'}`;
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
+                <FiLoader className="w-8 h-8 animate-spin text-primary" />
+                <p className="text-gray-500 dark:text-gray-400 font-medium">Loading notice details...</p>
+            </div>
+        );
+    }
+
+    if (!notice) {
+        return (
+            <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
+                <FiAlertCircle className="w-12 h-12 text-red-500" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Notice Not Found</h2>
+                <Link to="/notices" className="text-primary hover:underline font-medium">
+                    &larr; Back to Notices
+                </Link>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6 animate-fade-in max-w-5xl mx-auto pb-12">
+            {/* Header / Navigation */}
+            <div className="flex items-center gap-4">
+                <Link
+                    to="/notices"
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-colors text-gray-500"
+                >
+                    <FiArrowLeft className="w-5 h-5" />
+                </Link>
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                        {formatNoticeNo(notice.case_id, notice.notice_type)}
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-sm font-semibold rounded-full ${getStatusClass(notice.status)}`}>
+                            {getStatusIcon(notice.status)}
+                            <span className="capitalize">{notice.status}</span>
+                        </span>
+                    </h1>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        System ID: {notice.id}
+                    </p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Main Content Area */}
+                <div className="lg:col-span-2 space-y-6">
+
+                    {/* Notice Context Alert */}
+                    <div className="bg-white dark:bg-[#1f2937] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                            <FiFileText className="text-primary" /> Notice Details
+                        </h2>
+
+                        <div className="grid grid-cols-2 gap-y-4 gap-x-8">
+                            <div>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Generated On</p>
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                    {new Date(notice.created_at).toLocaleString()}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Notice Number</p>
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                    {formatNoticeNo(notice.case_id, notice.notice_type)}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Case Link</p>
+                                {notice.case_code ? (
+                                    <Link to={`/cases/${notice.case_id}`} className="font-medium text-primary hover:underline flex items-center gap-1">
+                                        {notice.case_code} <FiLink className="w-3 h-3" />
+                                    </Link>
+                                ) : (
+                                    <Link to={`/cases/${notice.case_id}`} className="font-medium text-primary hover:underline flex items-center gap-1">
+                                        View Case <FiLink className="w-3 h-3" />
+                                    </Link>
+                                )}
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Created By</p>
+                                <p className="font-medium text-gray-900 dark:text-white opacity-50">
+                                    System Admin
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Content Preview */}
+                    <div className="bg-white dark:bg-[#1f2937] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                            <FiFileText className="text-primary" /> Generated Content Payload
+                        </h2>
+
+                        <div className="bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-100 dark:border-white/5 font-mono text-xs overflow-x-auto">
+                            <pre className="text-gray-700 dark:text-gray-300">
+                                {JSON.stringify(notice.content, null, 2)}
+                            </pre>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Sidebar */}
+                <div className="space-y-6">
+                    {/* Active Links Card */}
+                    {notice.content && (notice.content.portal_link || notice.content.meeting_url) && (
+                        <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 p-6 rounded-2xl shadow-sm">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                <FiLink className="text-primary" /> Generated Links
+                            </h2>
+
+                            <div className="space-y-4">
+                                {notice.content.portal_link && (
+                                    <div className="bg-white dark:bg-[#1f2937] p-3 rounded-xl border border-primary/10 group relative">
+                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Victim Portal URL</p>
+                                        <div className="flex items-center gap-2">
+                                            <div className="truncate text-sm font-medium text-gray-700 dark:text-gray-300 flex-1">
+                                                {notice.content.portal_link}
+                                            </div>
+                                            <a
+                                                href={notice.content.portal_link}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="shrink-0 w-8 h-8 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg flex items-center justify-center transition-colors"
+                                            >
+                                                <FiLink className="w-4 h-4" />
+                                            </a>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {notice.content.meeting_url && (
+                                    <div className="bg-white dark:bg-[#1f2937] p-3 rounded-xl border border-primary/10 group relative">
+                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Scheduled Hearing URL</p>
+                                        <div className="flex items-center gap-2">
+                                            <div className="truncate text-sm font-medium text-gray-700 dark:text-gray-300 flex-1">
+                                                {notice.content.meeting_url}
+                                            </div>
+                                            <a
+                                                href={notice.content.meeting_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="shrink-0 w-8 h-8 bg-blue-100 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg flex items-center justify-center transition-colors"
+                                            >
+                                                <FiVideo className="w-4 h-4" />
+                                            </a>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Delivery Status Card */}
+                    <div className="bg-white dark:bg-[#1f2937] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                            <FiSend className="text-primary" /> Delivery Status
+                        </h2>
+
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-900 dark:text-white">Mock SMS Dispatch</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">Logs routed to `notice_deliveries`</p>
+                                </div>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                    <FiCheckCircle className="w-3 h-3" />
+                                    Sent
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default NoticeDetail;

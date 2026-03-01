@@ -27,10 +27,15 @@ async def list_cases(
     query = (
         select(Case)
         .options(
+            selectinload(Case.rules_state),
             selectinload(Case.parties),
             selectinload(Case.notices),
             selectinload(Case.milestones),
-            selectinload(Case.arbitration)
+            selectinload(Case.arbitration),
+            selectinload(Case.meetings),
+            selectinload(Case.recordings),
+            selectinload(Case.documents),
+            selectinload(Case.victim_accounts)
         )
         .order_by(Case.created_at.desc())
         .offset(skip)
@@ -281,7 +286,25 @@ async def create_case(
     db.add(new_case)
     await db.commit()
     await db.refresh(new_case)
-    return new_case
+    
+    stmt = (
+        select(Case)
+        .where(Case.id == new_case.id)
+        .options(
+            selectinload(Case.rules_state),
+            selectinload(Case.parties),
+            selectinload(Case.notices),
+            selectinload(Case.milestones),
+            selectinload(Case.arbitration),
+            selectinload(Case.meetings),
+            selectinload(Case.recordings),
+            selectinload(Case.documents),
+            selectinload(Case.victim_accounts)
+        )
+    )
+    result = await db.execute(stmt)
+    full_case = result.scalar_one()
+    return full_case
 
 from sqlalchemy.orm import selectinload
 
@@ -295,10 +318,15 @@ async def get_case(
         select(Case)
         .where(Case.id == case_id)
         .options(
+            selectinload(Case.rules_state),
             selectinload(Case.parties),
             selectinload(Case.notices),
             selectinload(Case.milestones),
-            selectinload(Case.arbitration)
+            selectinload(Case.arbitration),
+            selectinload(Case.meetings),
+            selectinload(Case.recordings),
+            selectinload(Case.documents),
+            selectinload(Case.victim_accounts)
         )
     )
     result = await db.execute(query)
@@ -331,4 +359,121 @@ async def update_case(
         
     await db.commit()
     await db.refresh(case)
+    
+    stmt = (
+        select(Case)
+        .where(Case.id == case_id)
+        .options(
+            selectinload(Case.rules_state),
+            selectinload(Case.parties),
+            selectinload(Case.notices),
+            selectinload(Case.milestones),
+            selectinload(Case.arbitration),
+            selectinload(Case.meetings),
+            selectinload(Case.recordings),
+            selectinload(Case.documents),
+            selectinload(Case.victim_accounts)
+        )
+    )
+    result = await db.execute(stmt)
+    full_case = result.scalar_one()
+    return full_case
+
+from pydantic import BaseModel
+class CaseAssign(BaseModel):
+    advocate_id: UUID
+
+@router.put("/{case_id}/assign", response_model=CaseResponse)
+async def assign_advocate(
+    case_id: UUID,
+    payload: CaseAssign,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles([UserRole.super_admin, UserRole.case_manager]))
+):
+    query = select(Case).where(Case.id == case_id)
+    result = await db.execute(query)
+    case = result.scalar_one_or_none()
+    
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+        
+    case.assigned_advocate_id = payload.advocate_id
+    
+    # Audit log
+    from models import AuditLog, ActorType
+    audit = AuditLog(
+        actor_type=ActorType.internal,
+        actor_user_id=current_user.id,
+        action="ADVOCATE_ASSIGNED",
+        entity_type="Case",
+        entity_id=case.id,
+        after={"assigned_advocate_id": str(payload.advocate_id)}
+    )
+    db.add(audit)
+    
+    await db.commit()
+    await db.refresh(case)
+    
+    stmt = (
+        select(Case)
+        .where(Case.id == case_id)
+        .options(
+            selectinload(Case.rules_state),
+            selectinload(Case.parties),
+            selectinload(Case.notices),
+            selectinload(Case.milestones),
+            selectinload(Case.arbitration),
+            selectinload(Case.meetings),
+            selectinload(Case.recordings),
+            selectinload(Case.documents),
+            selectinload(Case.victim_accounts)
+        )
+    )
+    result = await db.execute(stmt)
+    full_case = result.scalar_one()
+    return full_case
+
+@router.post("/{case_id}/close", response_model=CaseResponse)
+async def close_case(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_roles([UserRole.super_admin, UserRole.case_manager]))
+):
+    query = select(Case).where(Case.id == case_id).options(
+        selectinload(Case.rules_state),
+        selectinload(Case.parties),
+        selectinload(Case.notices),
+        selectinload(Case.milestones),
+        selectinload(Case.arbitration),
+        selectinload(Case.meetings),
+        selectinload(Case.recordings),
+        selectinload(Case.documents),
+        selectinload(Case.victim_accounts)
+    )
+    result = await db.execute(query)
+    case = result.scalar_one_or_none()
+    
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+        
+    if not case.rules_state or not case.rules_state.closure_enabled:
+        raise HTTPException(status_code=400, detail="Case closure is not enabled by rules (needs 3 notices)")
+        
+    case.status = "CLOSED"
+    
+    # Audit log
+    from models import AuditLog, ActorType
+    audit = AuditLog(
+        actor_type=ActorType.internal,
+        actor_user_id=current_user.id,
+        action="CASE_CLOSED",
+        entity_type="Case",
+        entity_id=case.id,
+        after={"status": "CLOSED"}
+    )
+    db.add(audit)
+    
+    await db.commit()
+    await db.refresh(case)
     return case
+

@@ -159,6 +159,8 @@ class Case(Base):
     notices = relationship("Notice", back_populates="case", cascade="all, delete-orphan")
     meetings = relationship("Meeting", back_populates="case", cascade="all, delete-orphan")
     recordings = relationship("Recording", back_populates="case", cascade="all, delete-orphan")
+    documents = relationship("Document", back_populates="case", cascade="all, delete-orphan")
+    victim_accounts = relationship("VictimAccount", back_populates="case", cascade="all, delete-orphan")
     rules_state = relationship("CaseRuleState", back_populates="case", uselist=False, cascade="all, delete-orphan")
 
 class CaseParty(Base):
@@ -314,6 +316,8 @@ class VictimAccount(Base):
     status = Column(String, nullable=False, default="active")
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
+    case = relationship("Case", back_populates="victim_accounts")
+
 class Document(Base):
     __tablename__ = "documents"
     __table_args__ = {"schema": "app"}
@@ -331,6 +335,8 @@ class Document(Base):
     checksum_sha256 = Column(String)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    case = relationship("Case", back_populates="documents")
 
 class DocumentAccessLog(Base):
     __tablename__ = "document_access_logs"

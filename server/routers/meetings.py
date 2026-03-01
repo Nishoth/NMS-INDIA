@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from typing import List
+import uuid
 
 from database import get_db
 from models import Meeting, User, UserRole
@@ -20,9 +22,14 @@ async def list_meetings(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = select(Meeting).offset(skip).limit(limit)
+    query = select(Meeting).options(selectinload(Meeting.case)).offset(skip).limit(limit)
     result = await db.execute(query)
     meetings = result.scalars().all()
+    
+    for meeting in meetings:
+        if meeting.case:
+            setattr(meeting, 'case_code', meeting.case.case_code)
+            
     return meetings
 
 @router.post("/", response_model=MeetingResponse, status_code=status.HTTP_201_CREATED)
@@ -32,21 +39,43 @@ async def create_meeting(
     current_user: User = Depends(require_roles([UserRole.super_admin, UserRole.case_manager]))
 ):
     meeting = Meeting(**meeting_in.model_dump())
+    meeting.created_by = current_user.id
     db.add(meeting)
+    await db.flush()
+    
+    if not meeting.meet_url:
+        meeting.meet_url = f"http://localhost:5173/meeting/{meeting.id}"
+    if not meeting.portal_url:
+        portal_token = str(uuid.uuid4())
+        meeting.portal_url = f"http://localhost:5173/portal/{portal_token}"
+        
     await db.commit()
     await db.refresh(meeting)
+    
+    # Optional: pre-populate case_code if we needed to return it in the schema response
+    if meeting.case_id:
+        from models import Case
+        case_res = await db.execute(select(Case).where(Case.id == meeting.case_id))
+        c = case_res.scalar_one_or_none()
+        if c:
+            setattr(meeting, 'case_code', c.case_code)
+            
     return meeting
 
 @router.get("/{meeting_id}", response_model=MeetingResponse)
 async def get_meeting(
-    meeting_id: int, 
+    meeting_id: str, 
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    result = await db.execute(select(Meeting).filter(Meeting.id == meeting_id))
+    result = await db.execute(select(Meeting).options(selectinload(Meeting.case)).filter(Meeting.id == meeting_id))
     meeting = result.scalars().first()
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
+        
+    if meeting.case:
+        setattr(meeting, 'case_code', meeting.case.case_code)
+        
     return meeting
 
 @router.put("/{meeting_id}", response_model=MeetingResponse)
