@@ -8,7 +8,8 @@ const NoticeDetail = () => {
     const { id } = useParams();
     const [notice, setNotice] = useState(null);
     const [loading, setLoading] = useState(true);
-    const { handleRequest, getNotice } = useApi();
+    const [resending, setResending] = useState(false);
+    const { handleRequest, getNotice, resendNotice } = useApi();
 
     useEffect(() => {
         const fetchNotice = async () => {
@@ -23,6 +24,20 @@ const NoticeDetail = () => {
         };
         fetchNotice();
     }, [id]);
+
+    const handleResend = async (channel) => {
+        setResending(true);
+        const { error } = await handleRequest(() => resendNotice(id, channel));
+        setResending(false);
+        if (error) {
+            toast.error(error);
+        } else {
+            toast.success("Notice resent successfully!");
+            // Optionally reload notice to see new deliveries
+            const { data } = await handleRequest(() => getNotice(id));
+            if (data) setNotice(data);
+        }
+    };
 
     const getStatusIcon = (status) => {
         switch (status) {
@@ -44,11 +59,8 @@ const NoticeDetail = () => {
         }
     };
 
-    const formatNoticeNo = (caseId, noticeType) => {
-        if (!caseId) return `NOT-00000-${noticeType || 'A'}`;
-        const hash = parseInt(caseId.replace(/-/g, '').substring(0, 8), 16) % 100000;
-        const paddedHash = String(hash).padStart(5, '0');
-        return `NOT-${paddedHash}-${noticeType || 'A'}`;
+    const formatNoticeDisplay = (noticeNo) => {
+        return `N-${noticeNo || 'X'}`;
     };
 
     if (loading) {
@@ -84,7 +96,7 @@ const NoticeDetail = () => {
                 </Link>
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                        {formatNoticeNo(notice.case_id, notice.notice_type)}
+                        {formatNoticeDisplay(notice.notice_no)}
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-sm font-semibold rounded-full ${getStatusClass(notice.status)}`}>
                             {getStatusIcon(notice.status)}
                             <span className="capitalize">{notice.status}</span>
@@ -93,6 +105,16 @@ const NoticeDetail = () => {
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         System ID: {notice.id}
                     </p>
+                </div>
+                <div className="ml-auto">
+                    <button
+                        onClick={() => handleResend()}
+                        disabled={resending}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white text-sm font-bold rounded-xl shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:opacity-50 transition-all font-inter"
+                    >
+                        <FiSend className={resending ? "animate-pulse" : ""} />
+                        {resending ? "Resending..." : "Resend All"}
+                    </button>
                 </div>
             </div>
 
@@ -116,7 +138,7 @@ const NoticeDetail = () => {
                             <div>
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Notice Number</p>
                                 <p className="font-medium text-gray-900 dark:text-white">
-                                    {formatNoticeNo(notice.case_id, notice.notice_type)}
+                                    {formatNoticeDisplay(notice.notice_no)}
                                 </p>
                             </div>
                             <div>
@@ -152,6 +174,38 @@ const NoticeDetail = () => {
                             </pre>
                         </div>
                     </div>
+
+                    {/* Attachments Section */}
+                    {notice.attachments && notice.attachments.length > 0 && (
+                        <div className="bg-white dark:bg-[#1f2937] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                <FiFileText className="text-primary" /> Attachments
+                            </h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {notice.attachments.map((atch) => (
+                                    <div key={atch.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10 group">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                                                <FiFileText />
+                                            </div>
+                                            <div className="truncate">
+                                                <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{atch.document.file_name}</p>
+                                                <p className="text-xs text-gray-500">{(atch.document.size_bytes / 1024).toFixed(1)} KB • {atch.document.category}</p>
+                                            </div>
+                                        </div>
+                                        <a
+                                            href={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/documents/${atch.document_id}/download`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="p-2 hover:bg-primary/10 text-primary rounded-lg transition-colors"
+                                        >
+                                            <FiLink />
+                                        </a>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Sidebar */}
@@ -207,21 +261,42 @@ const NoticeDetail = () => {
 
                     {/* Delivery Status Card */}
                     <div className="bg-white dark:bg-[#1f2937] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                            <FiSend className="text-primary" /> Delivery Status
-                        </h2>
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                <FiSend className="text-primary" /> Delivery Status
+                            </h2>
+                        </div>
 
                         <div className="space-y-4">
-                            <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-900 dark:text-white">Mock SMS Dispatch</p>
-                                    <p className="text-xs text-gray-500 mt-0.5">Logs routed to `notice_deliveries`</p>
-                                </div>
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                    <FiCheckCircle className="w-3 h-3" />
-                                    Sent
-                                </span>
-                            </div>
+                            {notice.deliveries && notice.deliveries.length > 0 ? (
+                                notice.deliveries.map((delivery) => (
+                                    <div key={delivery.id} className="p-4 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-sm font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                                                {delivery.channel}
+                                            </span>
+                                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold uppercase rounded-full ${getStatusClass(delivery.status)}`}>
+                                                {delivery.status}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mb-3 truncate">{delivery.to_address}</p>
+                                        <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-white/5">
+                                            <span className="text-[10px] text-gray-400">
+                                                {delivery.sent_at ? new Date(delivery.sent_at).toLocaleString() : "Pending"}
+                                            </span>
+                                            <button
+                                                onClick={() => handleResend(delivery.channel)}
+                                                disabled={resending}
+                                                className="text-[10px] font-bold text-primary hover:underline uppercase disabled:opacity-50"
+                                            >
+                                                Retry Channel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-sm text-gray-500 text-center py-4 italic">No delivery attempts recorded.</p>
+                            )}
                         </div>
                     </div>
                 </div>

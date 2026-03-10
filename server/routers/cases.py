@@ -9,7 +9,7 @@ import math
 from datetime import datetime
 
 from database import get_db
-from models import Case, User, UserRole
+from models import Case, User, UserRole, Notice, NoticeAttachment
 from schemas import CaseCreate, CaseResponse, CaseImportResponse
 from core.dependencies import get_current_user, require_roles
 
@@ -29,7 +29,7 @@ async def list_cases(
         .options(
             selectinload(Case.rules_state),
             selectinload(Case.parties),
-            selectinload(Case.notices),
+            selectinload(Case.notices).options(selectinload(Notice.attachments).selectinload(NoticeAttachment.document), selectinload(Notice.deliveries)),
             selectinload(Case.milestones),
             selectinload(Case.arbitration),
             selectinload(Case.meetings),
@@ -293,7 +293,7 @@ async def create_case(
         .options(
             selectinload(Case.rules_state),
             selectinload(Case.parties),
-            selectinload(Case.notices),
+            selectinload(Case.notices).selectinload(Notice.attachments).selectinload(NoticeAttachment.document),
             selectinload(Case.milestones),
             selectinload(Case.arbitration),
             selectinload(Case.meetings),
@@ -320,7 +320,10 @@ async def get_case(
         .options(
             selectinload(Case.rules_state),
             selectinload(Case.parties),
-            selectinload(Case.notices),
+            selectinload(Case.notices).options(
+                selectinload(Notice.attachments).selectinload(NoticeAttachment.document),
+                selectinload(Notice.deliveries)
+            ),
             selectinload(Case.milestones),
             selectinload(Case.arbitration),
             selectinload(Case.meetings),
@@ -366,7 +369,7 @@ async def update_case(
         .options(
             selectinload(Case.rules_state),
             selectinload(Case.parties),
-            selectinload(Case.notices),
+            selectinload(Case.notices).selectinload(Notice.attachments).selectinload(NoticeAttachment.document),
             selectinload(Case.milestones),
             selectinload(Case.arbitration),
             selectinload(Case.meetings),
@@ -420,7 +423,7 @@ async def assign_advocate(
         .options(
             selectinload(Case.rules_state),
             selectinload(Case.parties),
-            selectinload(Case.notices),
+            selectinload(Case.notices).selectinload(Notice.attachments).selectinload(NoticeAttachment.document),
             selectinload(Case.milestones),
             selectinload(Case.arbitration),
             selectinload(Case.meetings),
@@ -442,7 +445,7 @@ async def close_case(
     query = select(Case).where(Case.id == case_id).options(
         selectinload(Case.rules_state),
         selectinload(Case.parties),
-        selectinload(Case.notices),
+        selectinload(Case.notices).selectinload(Notice.attachments).selectinload(NoticeAttachment.document),
         selectinload(Case.milestones),
         selectinload(Case.arbitration),
         selectinload(Case.meetings),

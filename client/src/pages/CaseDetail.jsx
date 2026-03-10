@@ -2,80 +2,57 @@ import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
     FiArrowLeft, FiClock, FiFileText, FiUsers, FiVideo, FiActivity,
-    FiMapPin, FiPhone, FiMail, FiDollarSign, FiCalendar, FiBriefcase, FiAlertCircle, FiUploadCloud, FiDownload
+    FiMapPin, FiPhone, FiMail, FiDollarSign, FiCalendar, FiBriefcase, FiAlertCircle, FiUploadCloud, FiDownload,
+    FiExternalLink, FiCheckCircle
 } from "react-icons/fi";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchCaseDetail } from "../store/slices/caseSlice";
+import AddNoticeModal from "../components/AddNoticeModal";
 import { useApi } from "../hooks/useApi";
 import toast from "react-hot-toast";
 
 const CaseDetail = () => {
+    const dispatch = useDispatch();
     const { caseId } = useParams();
+    const { currentCase: caseData, loading, error: caseError } = useSelector((state) => state.cases);
+
     const [activeTab, setActiveTab] = useState("overview");
-    const [caseData, setCaseData] = useState(null);
-    const [loading, setLoading] = useState(true);
     const [advocates, setAdvocates] = useState([]);
     const [selectedAdvocate, setSelectedAdvocate] = useState("");
     const [isAssigning, setIsAssigning] = useState(false);
-    const [isGeneratingNotice, setIsGeneratingNotice] = useState(false);
+    const [isNoticeModalOpen, setIsNoticeModalOpen] = useState(false);
     const [isUploadingRecording, setIsUploadingRecording] = useState(false);
     const [isUploadingDocument, setIsUploadingDocument] = useState(false);
     const [isSchedulingMeeting, setIsSchedulingMeeting] = useState(false);
     const [meetingDate, setMeetingDate] = useState("");
     const [meetingNotes, setMeetingNotes] = useState("");
     const [isClosingCase, setIsClosingCase] = useState(false);
-    const { getCase, handleRequest, getUsers, assignAdvocate, createNotice, uploadRecording, downloadRecording, uploadDocument, downloadDocument, createMeeting, closeCase } = useApi();
+
+    const { handleRequest, getUsers, assignAdvocate, uploadRecording, downloadRecording, uploadDocument, downloadDocument, createMeeting, closeCase } = useApi();
 
     useEffect(() => {
-        const fetchCaseData = async () => {
-            setLoading(true);
-            const { data, error } = await handleRequest(() => getCase(caseId));
-            if (error) {
-                toast.error("Failed to load case details.");
-            } else {
-                setCaseData(data);
-                // Also fetch advocates
-                const { data: usersData, error: usersErr } = await handleRequest(() => getUsers("advocate"));
-                if (!usersErr && usersData) {
-                    setAdvocates(usersData);
-                }
-            }
-            setLoading(false);
-        };
-        if (caseId) fetchCaseData();
-    }, [caseId]);
+        if (caseId) {
+            dispatch(fetchCaseDetail(caseId));
+
+            // Fetch advocates
+            const fetchAdvocates = async () => {
+                const { data, error } = await handleRequest(() => getUsers("advocate"));
+                if (!error && data) setAdvocates(data);
+            };
+            fetchAdvocates();
+        }
+    }, [caseId, dispatch]);
 
     const handleAssignAdvocate = async () => {
         if (!selectedAdvocate) return;
         setIsAssigning(true);
-        const { data, error } = await handleRequest(() => assignAdvocate(caseId, selectedAdvocate));
+        const { error } = await handleRequest(() => assignAdvocate(caseId, selectedAdvocate));
         setIsAssigning(false);
         if (error) {
             toast.error(error);
         } else {
             toast.success("Advocate assigned successfully");
-            setCaseData(data);
-        }
-    };
-
-    const handleCreateNotice = async () => {
-        setIsGeneratingNotice(true);
-        const nextNoticeNo = (caseData.notices?.length || 0) + 1;
-        const noticeType = nextNoticeNo === 1 ? "A" : nextNoticeNo === 2 ? "B" : "C";
-
-        const { error } = await handleRequest(() => createNotice({
-            case_id: caseId,
-            notice_no: nextNoticeNo,
-            notice_type: noticeType,
-            content: {}
-        }));
-
-        setIsGeneratingNotice(false);
-        if (error) {
-            toast.error(error);
-        } else {
-            toast.success(`Notice #${nextNoticeNo} generated and dispatched`);
-            // Refresh case data
-            const { data: newCaseData } = await handleRequest(() => getCase(caseId));
-            if (newCaseData) setCaseData(newCaseData);
+            dispatch(fetchCaseDetail(caseId));
         }
     };
 
@@ -94,8 +71,7 @@ const CaseDetail = () => {
             toast.error(error);
         } else {
             toast.success("Recording uploaded successfully");
-            const { data: newCaseData } = await handleRequest(() => getCase(caseId));
-            if (newCaseData) setCaseData(newCaseData);
+            dispatch(fetchCaseDetail(caseId));
         }
     };
 
@@ -148,8 +124,7 @@ const CaseDetail = () => {
             toast.error(error);
         } else {
             toast.success("Document uploaded successfully");
-            const { data: newCaseData } = await handleRequest(() => getCase(caseId));
-            if (newCaseData) setCaseData(newCaseData);
+            dispatch(fetchCaseDetail(caseId));
         }
     };
 
@@ -187,8 +162,7 @@ const CaseDetail = () => {
             toast.success("Meeting scheduled successfully");
             setMeetingDate("");
             setMeetingNotes("");
-            const { data: newCaseData } = await handleRequest(() => getCase(caseId));
-            if (newCaseData) setCaseData(newCaseData);
+            dispatch(fetchCaseDetail(caseId));
         }
     };
 
@@ -201,8 +175,7 @@ const CaseDetail = () => {
             toast.error(error);
         } else {
             toast.success("Case closed successfully");
-            const { data: newCaseData } = await handleRequest(() => getCase(caseId));
-            if (newCaseData) setCaseData(newCaseData);
+            dispatch(fetchCaseDetail(caseId));
         }
     };
 
@@ -465,11 +438,10 @@ const CaseDetail = () => {
                                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generated Notices</h3>
                                 {caseData.status !== "CLOSED" && (
                                     <button
-                                        onClick={handleCreateNotice}
-                                        disabled={isGeneratingNotice}
-                                        className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                                        onClick={() => setIsNoticeModalOpen(true)}
+                                        className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90"
                                     >
-                                        {isGeneratingNotice ? "Generating..." : `Generate Notice #${(caseData.notices?.length || 0) + 1}`}
+                                        Add Notice / Generate Notice
                                     </button>
                                 )}
                             </div>
@@ -479,27 +451,58 @@ const CaseDetail = () => {
                                         <div key={notice.id} className="bg-white dark:bg-white/5 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 hover:border-primary/30 transition-all">
                                             <div className="flex justify-between items-start mb-3">
                                                 <div className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                                    <FiFileText className="text-primary" /> Notice {notice.notice_type || notice.notice_no}
+                                                    <FiFileText className="text-primary" /> Notice N-{notice.notice_no}
                                                 </div>
-                                                <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
+                                                <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400`}>
                                                     {notice.status}
                                                 </span>
                                             </div>
                                             <p className="text-sm text-gray-500 mt-2">
-                                                <strong>Notice No:</strong> {notice.notice_no}
+                                                <strong>Type:</strong> {notice.notice_type}
                                             </p>
                                             <p className="text-sm text-gray-500">
-                                                <strong>Date Created:</strong> {new Date(notice.created_at).toLocaleDateString()}
+                                                <strong>Date:</strong> {new Date(notice.created_at).toLocaleDateString()}
                                             </p>
+
+                                            {/* Links */}
                                             {notice.content?.portal_link && (
-                                                <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/5">
-                                                    <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Generated Links</p>
-                                                    <a href={notice.content.portal_link} target="_blank" rel="noreferrer" className="block text-sm text-blue-500 hover:underline truncate">Victim Portal</a>
-                                                    {notice.content.meeting_url && (
-                                                        <a href={notice.content.meeting_url} target="_blank" rel="noreferrer" className="block text-sm text-purple-500 hover:underline truncate">Meeting Link</a>
-                                                    )}
+                                                <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/5 space-y-2">
+                                                    <p className="text-xs font-semibold text-gray-500 uppercase">Generated Links</p>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <a href={notice.content.portal_link} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors">
+                                                            <FiExternalLink className="w-3 h-3" /> Portal Link
+                                                        </a>
+                                                        {notice.content.meeting_url && (
+                                                            <a href={notice.content.meeting_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-600 px-2 py-1 rounded-lg hover:bg-purple-100 transition-colors">
+                                                                <FiVideo className="w-3 h-3" /> Meeting
+                                                            </a>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             )}
+
+                                            {/* Attachments for this specific notice */}
+                                            {notice.attachments && notice.attachments.length > 0 && (
+                                                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5">
+                                                    <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Attachments</p>
+                                                    <div className="space-y-1">
+                                                        {notice.attachments.map(att => (
+                                                            <div key={att.id} className="flex items-center justify-between text-xs bg-gray-50 dark:bg-black/20 p-2 rounded-lg">
+                                                                <span className="truncate flex-1 pr-2">{att.document?.file_name}</span>
+                                                                <button onClick={() => handleDocumentDownload(att.document_id, att.document?.file_name)} className="text-primary hover:text-primary/70">
+                                                                    <FiDownload className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="mt-4 flex justify-end">
+                                                <Link to={`/notices/${notice.id}`} className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+                                                    View Full Details <FiArrowLeft className="rotate-180" />
+                                                </Link>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -517,22 +520,56 @@ const CaseDetail = () => {
                         <div className="bg-white dark:bg-white/5 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Case Milestones</h3>
                             {caseData.milestones && caseData.milestones.length > 0 ? (
-                                <div className="relative border-l-2 border-gray-100 dark:border-white/10 ml-4 space-y-8">
-                                    {caseData.milestones.sort((a, b) => new Date(a.planned_date) - new Date(b.planned_date)).map((milestone, idx) => (
-                                        <div key={milestone.id} className="relative pl-6">
-                                            <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-white dark:bg-[#1f2937] border-2 border-primary shadow-sm" />
-                                            <div>
-                                                <h4 className="font-semibold text-gray-900 dark:text-white uppercase text-sm">{milestone.milestone_type.replace(/_/g, ' ')}</h4>
-                                                <p className="text-sm text-gray-500 mt-1">
-                                                    <FiCalendar className="inline mr-1 text-gray-400" />
-                                                    {milestone.planned_date ? new Date(milestone.planned_date).toLocaleDateString() : "Pending"}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    ))}
+                                <div className="p-2">
+                                    <div className="relative border-l-2 border-primary/20 ml-4 space-y-8 pb-4">
+                                        {[...caseData.milestones]
+                                            .sort((a, b) => {
+                                                const dateA = a.planned_date ? new Date(a.planned_date) :
+                                                    (a.actual_date ? new Date(a.actual_date) : new Date(8640000000000000));
+                                                const dateB = b.planned_date ? new Date(b.planned_date) :
+                                                    (b.actual_date ? new Date(b.actual_date) : new Date(8640000000000000));
+                                                return dateA - dateB;
+                                            })
+                                            .map((milestone, idx) => (
+                                                <div key={milestone.id} className="relative pl-8">
+                                                    <div className="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full bg-white dark:bg-[#1f2937] border-2 border-primary shadow-sm" />
+                                                    <div className="bg-gray-50 dark:bg-white/5 p-4 rounded-2xl border border-gray-100 dark:border-white/5">
+                                                        <div className="flex justify-between items-start mb-1">
+                                                            <h4 className="font-bold text-gray-900 dark:text-white uppercase text-xs tracking-wider">
+                                                                {milestone.milestone_type.replace(/_/g, ' ')}
+                                                            </h4>
+                                                            {milestone.actual_date && (
+                                                                <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full">COMPLETED</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-4 text-sm mt-2">
+                                                            <div className="text-gray-500 flex items-center gap-1">
+                                                                <FiCalendar className="w-4 h-4" />
+                                                                <span>Planned: {milestone.planned_date ? new Date(milestone.planned_date).toLocaleDateString() : "TBD"}</span>
+                                                            </div>
+                                                            {milestone.actual_date && (
+                                                                <div className="text-green-600 font-medium flex items-center gap-1">
+                                                                    <FiCheckCircle className="w-4 h-4" />
+                                                                    <span>Done: {new Date(milestone.actual_date).toLocaleDateString()}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        {milestone.notes && (
+                                                            <p className="text-sm text-gray-500 mt-2 bg-white/50 dark:bg-black/20 p-2 rounded-lg italic">
+                                                                "{milestone.notes}"
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </div>
                                 </div>
                             ) : (
-                                <p className="text-gray-500">No timeline data available for this case.</p>
+                                <div className="text-center py-12 bg-gray-50 dark:bg-white/5 rounded-2xl border border-dashed border-gray-200 dark:border-white/10">
+                                    <FiClock className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                                    <p className="text-gray-500 font-medium">No milestones recorded for this case yet.</p>
+                                    <p className="text-xs text-gray-400 mt-1">Milestones are automatically generated during case import and progress.</p>
+                                </div>
                             )}
                         </div>
                     )}
@@ -688,9 +725,9 @@ const CaseDetail = () => {
                                 </label>
                             </div>
 
-                            {caseData.documents && caseData.documents.length > 0 ? (
+                            {caseData.documents && caseData.documents.filter(d => d.category !== 'NOTICE').length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {caseData.documents.map(doc => (
+                                    {caseData.documents.filter(d => d.category !== 'NOTICE').map(doc => (
                                         <div key={doc.id} className="bg-white dark:bg-[#1f2937] p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 flex items-start gap-4 hover:border-primary/20 transition-colors group">
                                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-colors ${doc.source === 'victim' ? 'bg-orange-50 text-orange-500 group-hover:bg-orange-100' : 'bg-green-50 text-green-500 group-hover:bg-green-100'}`}>
                                                 <FiFileText className="w-6 h-6" />
@@ -726,6 +763,13 @@ const CaseDetail = () => {
                     )}
                 </div>
             </div>
+            {/* Notice Creation Modal */}
+            <AddNoticeModal
+                isOpen={isNoticeModalOpen}
+                onClose={() => setIsNoticeModalOpen(false)}
+                caseId={caseId}
+                nextNoticeNo={(caseData.notices?.length || 0) + 1}
+            />
         </div>
     );
 };

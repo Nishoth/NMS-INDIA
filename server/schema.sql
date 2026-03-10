@@ -274,7 +274,7 @@ FOR EACH ROW EXECUTE FUNCTION app.set_updated_at();
 CREATE TABLE IF NOT EXISTS app.notices (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   case_id       uuid NOT NULL REFERENCES app.cases(id) ON DELETE CASCADE,
-  notice_no     int  NOT NULL CHECK (notice_no BETWEEN 1 AND 3),
+  notice_no     int  NOT NULL,
   notice_type   text,
   content       jsonb,                     -- store template payload / variables
   created_by    uuid REFERENCES app.users(id) ON DELETE SET NULL,
@@ -301,6 +301,16 @@ CREATE TABLE IF NOT EXISTS app.notice_deliveries (
 
 CREATE INDEX IF NOT EXISTS idx_notice_deliveries_notice_id ON app.notice_deliveries(notice_id);
 CREATE INDEX IF NOT EXISTS idx_notice_deliveries_status ON app.notice_deliveries(status);
+
+CREATE TABLE IF NOT EXISTS app.notice_attachments (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  notice_id   uuid NOT NULL REFERENCES app.notices(id) ON DELETE CASCADE,
+  document_id uuid NOT NULL REFERENCES app.documents(id) ON DELETE CASCADE,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notice_attachments_notice_id ON app.notice_attachments(notice_id);
+CREATE INDEX IF NOT EXISTS idx_notice_attachments_document_id ON app.notice_attachments(document_id);
 
 -- Rule state table: closure enabled after 3 notices
 CREATE TABLE IF NOT EXISTS app.case_rules_state (

@@ -187,18 +187,44 @@ class NoticeBase(BaseModel):
     status: Optional[NoticeStatus] = NoticeStatus.draft
 
 class NoticeCreate(NoticeBase):
-    pass
+    delivery_channels: List[DeliveryChannel] = Field(default_factory=lambda: [DeliveryChannel.sms])
+    include_portal_link: bool = False
+    include_meeting_link: bool = False
+    attachment_ids: Optional[List[UUID]] = None
 
 class NoticeUpdate(BaseModel):
     notice_type: Optional[str] = None
     content: Optional[dict] = None
     status: Optional[NoticeStatus] = None
 
+class NoticeDeliveryResponse(BaseModel):
+    id: UUID
+    channel: DeliveryChannel
+    to_address: Optional[str] = None
+    status: DeliveryStatus
+    sent_at: Optional[datetime] = None
+    provider_message_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 class NoticeResponse(NoticeBase):
     id: UUID
     created_by: Optional[UUID] = None
     created_at: datetime
     case_code: Optional[str] = None
+    attachments: List['NoticeAttachmentResponse'] = []
+    deliveries: List[NoticeDeliveryResponse] = []
+
+    class Config:
+        from_attributes = True
+
+class NoticeAttachmentResponse(BaseModel):
+    id: UUID
+    notice_id: UUID
+    document_id: UUID
+    created_at: datetime
+    document: 'DocumentResponse'
 
     class Config:
         from_attributes = True

@@ -241,6 +241,19 @@ class Notice(Base):
 
     case = relationship("Case", back_populates="notices")
     deliveries = relationship("NoticeDelivery", back_populates="notice", cascade="all, delete-orphan")
+    attachments = relationship("NoticeAttachment", back_populates="notice", cascade="all, delete-orphan")
+
+class NoticeAttachment(Base):
+    __tablename__ = "notice_attachments"
+    __table_args__ = {"schema": "app"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    notice_id = Column(UUID(as_uuid=True), ForeignKey("app.notices.id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("app.documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    notice = relationship("Notice", back_populates="attachments")
+    document = relationship("Document")
 
 class NoticeDelivery(Base):
     __tablename__ = "notice_deliveries"

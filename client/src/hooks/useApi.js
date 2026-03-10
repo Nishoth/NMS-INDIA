@@ -9,7 +9,37 @@ const api = axios.create({
     baseURL: API_BASE_URL,
 });
 
+const sanitizeData = (data) => {
+    if (typeof data === 'string') {
+        // Basic protection against script tags and common injection patterns
+        return data.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
+            .replace(/[<>]/g, "");
+    }
+    if (Array.isArray(data)) return data.map(sanitizeData);
+    if (typeof data === 'object' && data !== null) {
+        return Object.keys(data).reduce((acc, key) => {
+            acc[key] = sanitizeData(data[key]);
+            return acc;
+        }, {});
+    }
+    return data;
+};
+
 api.interceptors.request.use((config) => {
+    // 1. API Injection Prevention: Ensure URL is internal to the configured base
+    if (!config.url.startsWith('/')) {
+        const url = new URL(config.url, API_BASE_URL);
+        if (url.origin !== new URL(API_BASE_URL).origin) {
+            throw new Error("Potential API Injection detected: External URL blocked.");
+        }
+    }
+
+    // 2. Input Sanitization: Clean the request body
+    if (config.data && !(config.data instanceof FormData) && !(config.data instanceof URLSearchParams)) {
+        config.data = sanitizeData(config.data);
+    }
+
+    // 3. Authentication
     if (config.url.startsWith("/portal/case") || config.url.startsWith("/portal/meeting") || config.url.startsWith("/portal/upload")) {
         const portalToken = localStorage.getItem("victim_token");
         if (portalToken) {
@@ -76,6 +106,8 @@ export const useApi = () => {
         getNotices: (skip = 0, limit = 100) => api.get(`/notices/?skip=${skip}&limit=${limit}`),
         getNotice: (id) => api.get(`/notices/${id}`),
         createNotice: (data) => api.post("/notices/", data),
+        resendNotice: (noticeId, channel) =>
+            handleRequest(() => api.post(`/notices/${noticeId}/resend${channel ? `?channel=${channel}` : ''}`)),
 
         // Users
         getUsers: (role) => api.get(role ? `/users/?role=${role}` : "/users/"),
