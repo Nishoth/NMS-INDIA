@@ -1,37 +1,59 @@
 import React, { useMemo, useState } from "react";
 import { FiEye, FiEyeOff, FiUser, FiLock } from "react-icons/fi";
-import assets, { internalUsers, ROLES, ROLE_LABELS } from "../assets/assets";
+import assets from "../assets/assets";
 import { useAppContext } from "../context/AppContext";
 
 const Login = () => {
   const [showPw, setShowPw] = useState(false);
 
-  // default prefill using env admin (nice for dev)
-  const [email, setEmail] = useState(import.meta.env.VITE_ADMIN_EMAIL || "");
-  const [password, setPassword] = useState(import.meta.env.VITE_ADMIN_PASSWORD || "");
+  // Start with empty fields - user must enter credentials
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-
-  // optional: filter seed users by role for quick testing
-  const [roleFilter, setRoleFilter] = useState("all");
 
   const { login, authLoading } = useAppContext();
 
-  const envAdminHint = useMemo(() => {
-    const e = (import.meta.env.VITE_ADMIN_EMAIL || "").trim();
-    return e ? `Default Admin: ${e}` : "";
-  }, []);
+  // No auto-hints - clean login page
 
-  // Seed users for quick fill
-  const seedUsers = useMemo(() => {
-    const list = Array.isArray(internalUsers) ? internalUsers : [];
-    if (roleFilter === "all") return list;
-    return list.filter((u) => u.role === roleFilter);
-  }, [roleFilter]);
+  // Attractive dummy users with realistic names - clickable but no action
+  const dummyUsers = useMemo(() => [
+    {
+      id: "1",
+      name: "Rukshan Perera",
+      role: "Super Admin",
+      initials: "RP",
+      avatar: null,
+      color: "bg-blue-600"
+    },
+    {
+      id: "2", 
+      name: "Sarah Johnson",
+      role: "Case Manager",
+      initials: "SJ",
+      avatar: null,
+      color: "bg-emerald-600"
+    },
+    {
+      id: "3",
+      name: "Michael Fernando",
+      role: "Advocate",
+      initials: "MF", 
+      avatar: null,
+      color: "bg-violet-600"
+    },
+    {
+      id: "4",
+      name: "Emily Silva",
+      role: "Staff",
+      initials: "ES",
+      avatar: null,
+      color: "bg-amber-600"
+    }
+  ], []);
 
-  const handleQuickFill = (u) => {
-    setError("");
-    setEmail(u.email || "");
-    setPassword(u.password || "password");
+  // Click handler - does nothing (just for visual effect)
+  const handleUserClick = () => {
+    // No action - just visual clickable element
   };
 
   const handleSubmit = async (e) => {
@@ -100,57 +122,48 @@ const Login = () => {
           </h1>
 
           <p className="text-sm text-gray-600 mb-6">
-            Sign in using internal credentials.{" "}
-            <span className="text-gray-500">{envAdminHint}</span>
+            Sign in using your credentials.
           </p>
 
-          {/* Quick Fill Panel (Dummy Users) */}
-          <div className="mb-6 rounded-xl border border-gray-200 bg-white/80 p-4 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-              <p className="text-sm font-semibold text-gray-800">
-                Quick login (dummy internal users)
-              </p>
-
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="w-full sm:w-64 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="all">All Roles</option>
-                <option value={ROLES.SUPER_ADMIN}>{ROLE_LABELS[ROLES.SUPER_ADMIN]}</option>
-                <option value={ROLES.CASE_MANAGER}>{ROLE_LABELS[ROLES.CASE_MANAGER]}</option>
-                <option value={ROLES.ADVOCATE}>{ROLE_LABELS[ROLES.ADVOCATE]}</option>
-                <option value={ROLES.STAFF}>{ROLE_LABELS[ROLES.STAFF]}</option>
-              </select>
+          {/* Quick Login Panel - Attractive Dummy Users */}
+          <div className="mb-6 rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                <p className="text-sm font-bold text-gray-800">
+                  Quick Login <span className="text-gray-500 font-normal">(Demo Users)</span>
+                </p>
+              </div>
+              <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full font-medium">
+                All Roles
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {seedUsers.slice(0, 4).map((u) => (
+            <div className="grid grid-cols-2 gap-3">
+              {dummyUsers.map((u) => (
                 <button
                   key={u.id}
                   type="button"
-                  onClick={() => handleQuickFill(u)}
-                  className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 hover:bg-gray-50 transition"
+                  onClick={handleUserClick}
+                  className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm hover:shadow-md hover:border-gray-300 transition-all cursor-pointer group"
                 >
-                  <img
-                    src={u.avatar || assets.profile}
-                    alt=""
-                    className="h-8 w-8 rounded-full object-cover"
-                  />
-                  <div className="text-left">
-                    <p className="text-sm font-semibold text-gray-800 leading-none">
-                      {u.username}
+                  <div className={`h-11 w-11 rounded-full ${u.color} text-white flex items-center justify-center text-sm font-bold shadow-md group-hover:scale-110 transition-transform`}>
+                    {u.initials}
+                  </div>
+                  <div className="text-left flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 leading-tight truncate">
+                      {u.name}
                     </p>
-                    <p className="text-[11px] text-gray-500 mt-1 uppercase tracking-wide">
-                      {ROLE_LABELS[u.role] || "USER"}
+                    <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                      {u.role}
                     </p>
                   </div>
                 </button>
               ))}
             </div>
 
-            <p className="text-xs text-gray-500 mt-3">
-              Tip: Clicking a user fills email + password for demo testing.
+            <p className="text-xs text-gray-400 mt-4 text-center">
+              Select a user for quick access
             </p>
           </div>
 
@@ -163,7 +176,7 @@ const Login = () => {
                 <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="email"
-                  placeholder="Email Address"
+                  placeholder="admin@jls.in"
                   value={email}
                   autoComplete="email"
                   onChange={(e) => setEmail(e.target.value)}

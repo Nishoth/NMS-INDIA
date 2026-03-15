@@ -3,9 +3,8 @@ import { useParams, Link } from "react-router-dom";
 import {
     FiArrowLeft, FiClock, FiFileText, FiUsers, FiVideo, FiActivity,
     FiMapPin, FiPhone, FiMail, FiDollarSign, FiCalendar, FiBriefcase, FiAlertCircle, FiUploadCloud, FiDownload,
-    FiExternalLink, FiCheckCircle, FiShield, FiSend, FiX, FiRefreshCw, FiMessageSquare, FiCheck
+    FiExternalLink, FiCheckCircle, FiShield, FiSend, FiX, FiRefreshCw
 } from "react-icons/fi";
-import { SiWhatsapp } from "react-icons/si";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchCaseDetail, updateNoticeStatusLocal } from "../store/slices/caseSlice";
 import AddNoticeModal from "../components/AddNoticeModal";
@@ -51,8 +50,6 @@ const CaseDetail = () => {
     const [sendModalItem, setSendModalItem] = useState(null);
     const [isSending, setIsSending] = useState(false);
     const [sendError, setSendError] = useState(null); // Track send errors
-    const [sendChannels, setSendChannels] = useState(['sms']); // Delivery channels for sending
-    const [sendCustomMessage, setSendCustomMessage] = useState(''); // Custom message for sending
 
     const { handleRequest, getUsers, assignAdvocate, uploadRecording, downloadRecording, uploadDocument, downloadDocument, createMeeting, closeCase } = useApi();
     
@@ -138,27 +135,7 @@ const CaseDetail = () => {
             };
             fetchAdvocates();
         }
-    }, [caseId]);
-    
-    // Retry fetch if caseData is null after loading completes
-    useEffect(() => {
-        if (!loading && !caseData && caseId) {
-            console.log('Case data is null after loading, retrying...');
-            const retryTimeout = setTimeout(() => {
-                dispatch(fetchCaseDetail(caseId));
-            }, 500);
-            return () => clearTimeout(retryTimeout);
-        }
-    }, [loading, caseData, caseId, dispatch]);
-
-    // Toggle delivery channel for send modal
-    const toggleSendChannel = (channel) => {
-        setSendChannels(prev =>
-            prev.includes(channel)
-                ? prev.filter(c => c !== channel)
-                : [...prev, channel]
-        );
-    };
+    }, [caseId, dispatch]);
 
     const handleAssignAdvocate = async () => {
         if (!selectedAdvocate) return;
@@ -778,71 +755,14 @@ const CaseDetail = () => {
                                                 </div>
                                             )}
 
-                                            {/* Delivery Status Icons */}
-                                            {notice.delivery_status && (
-                                                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5">
-                                                    <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Delivery Status</p>
-                                                    <div className="flex items-center gap-3">
-                                                        {/* SMS Status */}
-                                                        {notice.delivery_channels?.includes('sms') && (
-                                                            <div className="flex items-center gap-1.5" title="SMS">
-                                                                {notice.delivery_status.sms === 'success' ? (
-                                                                    <FiCheckCircle className="w-4 h-4 text-green-500" />
-                                                                ) : notice.delivery_status.sms === 'failed' ? (
-                                                                    <FiAlertCircle className="w-4 h-4 text-red-500" />
-                                                                ) : (
-                                                                    <FiClock className="w-4 h-4 text-gray-400" />
-                                                                )}
-                                                                <span className="text-xs text-gray-600 dark:text-gray-400">SMS</span>
-                                                            </div>
-                                                        )}
-                                                        {/* WhatsApp Status */}
-                                                        {notice.delivery_channels?.includes('whatsapp') && (
-                                                            <div className="flex items-center gap-1.5" title="WhatsApp">
-                                                                {notice.delivery_status.whatsapp === 'success' ? (
-                                                                    <FiCheckCircle className="w-4 h-4 text-green-500" />
-                                                                ) : notice.delivery_status.whatsapp === 'failed' ? (
-                                                                    <FiAlertCircle className="w-4 h-4 text-red-500" />
-                                                                ) : (
-                                                                    <FiClock className="w-4 h-4 text-gray-400" />
-                                                                )}
-                                                                <SiWhatsapp className="w-3 h-3 text-gray-600 dark:text-gray-400" />
-                                                            </div>
-                                                        )}
-                                                        {/* Email Status */}
-                                                        {notice.delivery_channels?.includes('email') && (
-                                                            <div className="flex items-center gap-1.5" title="Email">
-                                                                {notice.delivery_status.email === 'success' ? (
-                                                                    <FiCheckCircle className="w-4 h-4 text-green-500" />
-                                                                ) : notice.delivery_status.email === 'failed' ? (
-                                                                    <FiAlertCircle className="w-4 h-4 text-red-500" />
-                                                                ) : (
-                                                                    <FiClock className="w-4 h-4 text-gray-400" />
-                                                                )}
-                                                                <FiMail className="w-3 h-3 text-gray-600 dark:text-gray-400" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {/* Show failed channels message */}
-                                                    {notice.delivery_status.failed_channels && notice.delivery_status.failed_channels.length > 0 && (
-                                                        <p className="text-xs text-red-500 mt-2">
-                                                            Failed: {notice.delivery_status.failed_channels.join(', ')}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            )}
-
                                             {/* Actions */}
                                             <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/5 flex items-center justify-end gap-2">
-                                                {/* Show Send Now only if draft */}
                                                 {notice.status === 'draft' && (
                                                     <button
                                                         onClick={() => {
                                                             setSendModalType('notice');
                                                             setSendModalItem(notice);
                                                             setSendError(null);
-                                                            setSendChannels(notice.delivery_channels || ['sms']);
-                                                            setSendCustomMessage('');
                                                             setSendModalOpen(true);
                                                         }}
                                                         className="text-xs px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary/90 font-medium"
@@ -850,18 +770,12 @@ const CaseDetail = () => {
                                                         Send Now
                                                     </button>
                                                 )}
-                                                {/* Show Resend if any channel failed or overall status is error */}
-                                                {(notice.status === 'error' || 
-                                                  (notice.delivery_status && notice.delivery_status.failed_channels && notice.delivery_status.failed_channels.length > 0)) && (
+                                                {notice.status === 'error' && (
                                                     <button
                                                         onClick={() => {
                                                             setSendModalType('notice');
                                                             setSendModalItem(notice);
                                                             setSendError(notice.error_message || 'Failed to send');
-                                                            // Pre-select only failed channels for resend
-                                                            const failedChannels = notice.delivery_status?.failed_channels || ['sms'];
-                                                            setSendChannels(failedChannels);
-                                                            setSendCustomMessage('');
                                                             setSendModalOpen(true);
                                                         }}
                                                         className="text-xs px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium flex items-center gap-1"
@@ -1290,10 +1204,7 @@ const CaseDetail = () => {
                 onClose={() => {
                     setIsNoticeModalOpen(false);
                     // Refresh case data when modal closes to show new notice and meeting
-                    // Longer delay to ensure backend has persisted the data
-                    setTimeout(() => {
-                        dispatch(fetchCaseDetail(caseId));
-                    }, 1000);
+                    dispatch(fetchCaseDetail(caseId));
                 }}
                 caseId={caseId}
                 nextNoticeNo={(caseData.notices?.length || 0) + 1}
@@ -1301,121 +1212,85 @@ const CaseDetail = () => {
 
             {/* Send Confirmation Modal */}
             {sendModalOpen && sendModalItem && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-[#1f2937] w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-white/10">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-[#1f2937] rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in">
                         {/* Modal Header */}
-                        <div className="px-8 py-6 border-b border-gray-100 dark:border-white/10 flex items-center justify-between bg-gray-50/50 dark:bg-white/5">
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                    <FiSend className="text-primary" /> Send Notice
-                                </h2>
-                                <p className="text-sm text-gray-500 mt-1">
-                                    Sending Notice #{sendModalItem.notice_no || sendModalItem.id?.slice(0, 8)} for case {caseData.case_code}
-                                </p>
-                            </div>
-                            <button 
-                                onClick={() => {
-                                    setSendModalOpen(false);
-                                    setSendModalItem(null);
-                                    setSendModalType(null);
-                                }} 
-                                className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl transition-colors"
-                            >
-                                <FiX className="w-6 h-6 text-gray-400" />
-                            </button>
-                        </div>
-
-                        {/* Modal Body */}
-                        <div className="p-8 max-h-[70vh] overflow-y-auto">
-                            <div className="space-y-8">
-                                {/* Error Display */}
-                                {sendError && (
-                                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
-                                        <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
-                                            <FiAlertCircle className="w-4 h-4" />
-                                            <strong>Error:</strong> {sendError}
-                                        </p>
-                                    </div>
-                                )}
-
-                                {/* Delivery Channels */}
-                                <section className="space-y-4">
-                                    <label className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
-                                        Delivery Channels
-                                    </label>
-                                    <div className="space-y-3">
-                                        <ChannelToggle
-                                            icon={<FiMessageSquare />}
-                                            label="SMS"
-                                            active={sendChannels.includes('sms')}
-                                            onClick={() => toggleSendChannel('sms')}
-                                        />
-                                        <ChannelToggle
-                                            icon={<FiMessageSquare className="text-green-500" />}
-                                            label="WhatsApp"
-                                            active={sendChannels.includes('whatsapp')}
-                                            onClick={() => toggleSendChannel('whatsapp')}
-                                        />
-                                        <ChannelToggle
-                                            icon={<FiMail className="text-blue-500" />}
-                                            label="Email"
-                                            active={sendChannels.includes('email')}
-                                            onClick={() => toggleSendChannel('email')}
-                                        />
-                                    </div>
-                                </section>
-
-                                <div className="h-px bg-gray-100 dark:bg-white/10" />
-
-                                {/* Custom Message */}
-                                <section className="space-y-4">
-                                    <label className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
-                                        Custom Message (Optional)
-                                    </label>
-                                    <textarea
-                                        value={sendCustomMessage}
-                                        onChange={(e) => setSendCustomMessage(e.target.value)}
-                                        placeholder="Add any additional notes for the recipient..."
-                                        className="w-full h-32 p-4 text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none dark:text-white"
-                                    />
-                                </section>
-
-                                {/* Notice Details */}
-                                <section className="space-y-4">
-                                    <label className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
-                                        Notice Details
-                                    </label>
-                                    <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl text-sm space-y-2">
-                                        <p><strong>Type:</strong> {sendModalItem.notice_type || 'Notice'}</p>
-                                        <p><strong>Case:</strong> {caseData.case_code}</p>
-                                        {sendModalItem.content?.scheduled_date && (
-                                            <p><strong>Scheduled:</strong> {new Date(sendModalItem.content.scheduled_date).toLocaleString()}</p>
-                                        )}
-                                    </div>
-                                </section>
-                            </div>
-                        </div>
-
-                        {/* Modal Footer */}
-                        <div className="px-8 py-6 bg-gray-50/50 dark:bg-white/5 border-t border-gray-100 dark:border-white/10 flex items-center justify-end gap-4">
+                        <div className="px-6 py-4 border-b border-gray-100 dark:border-white/5 flex justify-between items-center">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                Confirm {sendModalType === 'notice' ? 'Notice' : 'Meeting'} Sending
+                            </h3>
                             <button
                                 onClick={() => {
                                     setSendModalOpen(false);
                                     setSendModalItem(null);
                                     setSendModalType(null);
                                 }}
-                                disabled={isSending}
-                                className="px-6 py-2.5 text-sm font-bold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                                className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            >
+                                <FiX className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="px-6 py-6">
+                            {sendError && (
+                                <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                                    <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
+                                        <FiAlertCircle className="w-4 h-4" />
+                                        <strong>Error:</strong> {sendError}
+                                    </p>
+                                </div>
+                            )}
+                            <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                                    <FiSend className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                                </div>
+                                <div>
+                                    <h4 className="font-medium text-gray-900 dark:text-white">
+                                        {sendModalType === 'notice' 
+                                            ? `Send Notice #${sendModalItem.notice_no || sendModalItem.id?.slice(0, 8)}?`
+                                            : `Send Meeting "${sendModalItem.title || 'Meeting'}"?`
+                                        }
+                                    </h4>
+                                    <p className="text-sm text-gray-500 mt-2">
+                                        This will change the status from <strong>DRAFT</strong> to <strong>SENT</strong> and trigger delivery via the selected channels.
+                                    </p>
+                                    
+                                    {/* Details */}
+                                    <div className="mt-4 p-3 bg-gray-50 dark:bg-white/5 rounded-lg text-sm">
+                                        {sendModalType === 'notice' ? (
+                                            <>
+                                                <p><strong>Type:</strong> {sendModalItem.notice_type || 'Notice'}</p>
+                                                <p><strong>Case:</strong> {caseData.case_code}</p>
+                                                {sendModalItem.content?.scheduled_date && (
+                                                    <p><strong>Scheduled:</strong> {new Date(sendModalItem.content.scheduled_date).toLocaleString()}</p>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <p><strong>Date:</strong> {new Date(sendModalItem.scheduled_at).toLocaleString()}</p>
+                                                <p><strong>Case:</strong> {caseData.case_code}</p>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 border-t border-gray-100 dark:border-white/5 flex justify-end gap-3">
+                            <button
+                                onClick={() => {
+                                    setSendModalOpen(false);
+                                    setSendModalItem(null);
+                                    setSendModalType(null);
+                                }}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={async () => {
-                                    // Validate at least one channel is selected
-                                    if (sendChannels.length === 0) {
-                                        return toast.error("Please select at least one delivery channel (SMS, WhatsApp, or Email)");
-                                    }
-
                                     setIsSending(true);
                                     setSendError(null);
                                     try {
@@ -1423,13 +1298,8 @@ const CaseDetail = () => {
                                             ? `/notices/${sendModalItem.id}/send`
                                             : `/meetings/${sendModalItem.id}/send`;
                                         
-                                        const payload = {
-                                            channels: sendChannels,
-                                            custom_message: sendCustomMessage || undefined
-                                        };
-                                        
-                                        const { data, error } = await handleRequest(() => 
-                                            api.post(endpoint, payload)
+                                        const { error } = await handleRequest(() => 
+                                            api.post(endpoint)
                                         );
                                         
                                         if (error) {
@@ -1438,45 +1308,13 @@ const CaseDetail = () => {
                                                 dispatch(updateNoticeStatusLocal({ 
                                                     noticeId: sendModalItem.id, 
                                                     status: 'error',
-                                                    error_message: error,
-                                                    delivery_channels: sendChannels
+                                                    error_message: error
                                                 }));
                                             }
                                             setSendError(error);
                                             toast.error(error);
                                         } else {
-                                            // Handle partial failures - check if any channel failed
-                                            const deliveryStatus = data?.delivery_status || {};
-                                            const failedChannels = [];
-                                            const successChannels = [];
-                                            
-                                            sendChannels.forEach(channel => {
-                                                if (deliveryStatus[channel] === 'failed') {
-                                                    failedChannels.push(channel);
-                                                } else if (deliveryStatus[channel] === 'success') {
-                                                    successChannels.push(channel);
-                                                }
-                                            });
-                                            
-                                            // Update notice with delivery status
-                                            if (sendModalType === 'notice') {
-                                                dispatch(updateNoticeStatusLocal({ 
-                                                    noticeId: sendModalItem.id, 
-                                                    status: failedChannels.length > 0 ? 'error' : 'sent',
-                                                    delivery_status: {
-                                                        ...deliveryStatus,
-                                                        failed_channels: failedChannels
-                                                    },
-                                                    delivery_channels: sendChannels
-                                                }));
-                                            }
-                                            
-                                            if (failedChannels.length > 0) {
-                                                toast.error(`Failed to send via: ${failedChannels.join(', ')}`);
-                                            } else {
-                                                toast.success(`${sendModalType === 'notice' ? 'Notice' : 'Meeting'} sent successfully!`);
-                                            }
-                                            
+                                            toast.success(`${sendModalType === 'notice' ? 'Notice' : 'Meeting'} sent successfully!`);
                                             dispatch(fetchCaseDetail(caseId));
                                             setSendModalOpen(false);
                                             setSendModalItem(null);
@@ -1489,8 +1327,7 @@ const CaseDetail = () => {
                                             dispatch(updateNoticeStatusLocal({ 
                                                 noticeId: sendModalItem.id, 
                                                 status: 'error',
-                                                error_message: errorMsg,
-                                                delivery_channels: sendChannels
+                                                error_message: errorMsg
                                             }));
                                         }
                                         setSendError(errorMsg);
@@ -1500,7 +1337,7 @@ const CaseDetail = () => {
                                     }
                                 }}
                                 disabled={isSending}
-                                className="px-8 py-2.5 bg-primary text-white text-sm font-bold rounded-xl shadow-lg shadow-primary/25 hover:bg-primary/90 disabled:opacity-50 transition-all flex items-center gap-2"
+                                className="px-4 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                                 {isSending ? (
                                     <>
@@ -1528,22 +1365,6 @@ const DetailRow = ({ label, value }) => (
         <span className="text-gray-500 min-w-max">{label}</span>
         <span className="font-medium text-gray-900 dark:text-white text-right break-words">{value || "-"}</span>
     </div>
-);
-
-const ChannelToggle = ({ icon, label, active, onClick }) => (
-    <button
-        onClick={onClick}
-        className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${active
-            ? 'border-primary bg-primary/5 text-primary shadow-sm shadow-primary/10'
-            : 'border-gray-100 dark:border-white/5 bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400'
-            }`}
-    >
-        <div className="flex items-center gap-3 font-semibold">
-            <span className="text-xl">{icon}</span>
-            {label}
-        </div>
-        {active ? <FiCheck className="w-5 h-5" /> : <div className="w-5 h-5 rounded-full border-2 border-gray-200 dark:border-white/10" />}
-    </button>
 );
 
 export default CaseDetail;

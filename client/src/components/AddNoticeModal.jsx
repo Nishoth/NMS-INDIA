@@ -4,13 +4,13 @@ import {
     FiMessageSquare, FiVideo, FiExternalLink, FiMail
 } from 'react-icons/fi';
 import { useDispatch } from 'react-redux';
-import { createDynamicNotice } from '../store/slices/caseSlice';
+import { createDynamicNotice, createMeeting as createMeetingAction, fetchCaseDetail, updateNoticeStatusLocal } from '../store/slices/caseSlice';
 import { useApi } from '../hooks/useApi';
 import toast from 'react-hot-toast';
 
 const AddNoticeModal = ({ isOpen, onClose, caseId, nextNoticeNo }) => {
     const dispatch = useDispatch();
-    const { uploadDocument } = useApi();
+    const { uploadDocument, createMeeting } = useApi();
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState(1);
     const [files, setFiles] = useState([]);
@@ -20,6 +20,7 @@ const AddNoticeModal = ({ isOpen, onClose, caseId, nextNoticeNo }) => {
         include_portal: true,
         include_meeting: false,
         custom_message: '',
+        scheduled_date: '', // Required: Date and time for the notice
     });
 
     const fileInputRef = useRef(null);
@@ -37,6 +38,7 @@ const AddNoticeModal = ({ isOpen, onClose, caseId, nextNoticeNo }) => {
                 include_portal: true,
                 include_meeting: false,
                 custom_message: '',
+                scheduled_date: '',
             });
             setIsCameraActive(false);
         }
@@ -94,11 +96,19 @@ const AddNoticeModal = ({ isOpen, onClose, caseId, nextNoticeNo }) => {
     };
 
     const handleSubmit = async () => {
+        // Validate at least one channel is selected
         if (formData.channels.length === 0) {
-            return toast.error("Select at least one delivery channel");
+            return toast.error("Please select at least one delivery channel (SMS, WhatsApp, or Email)");
+        }
+
+        // Validate scheduled date/time is only required when meeting is included
+        if (formData.include_meeting && !formData.scheduled_date) {
+            return toast.error("Please select a scheduled date and time for the meeting");
         }
 
         setLoading(true);
+        
+        // Run all operations first, then close modal
         try {
             // 1. Upload all files first
             const attachmentIds = [];
@@ -111,25 +121,76 @@ const AddNoticeModal = ({ isOpen, onClose, caseId, nextNoticeNo }) => {
                 attachmentIds.push(data.id);
             }
 
-            // 2. Create Notice
+            // 2. Create Notice - Only include meeting fields when toggle is ON
             const noticeData = {
                 case_id: caseId,
                 notice_no: nextNoticeNo,
                 notice_type: formData.notice_type,
+                status: 'draft', // Always create as draft first
                 delivery_channels: formData.channels,
                 include_portal_link: formData.include_portal,
-                include_meeting_link: formData.include_meeting,
-                content: {
-                    custom_message: formData.custom_message
-                },
+                ...(formData.include_meeting && {
+                    include_meeting_link: true,
+                    scheduled_at: formData.scheduled_date,
+                    content: {
+                        custom_message: formData.custom_message,
+                        scheduled_date: formData.scheduled_date
+                    }
+                }),
+                ...(!formData.include_meeting && {
+                    include_meeting_link: false,
+                    content: {
+                        custom_message: formData.custom_message
+                    }
+                }),
                 attachment_ids: attachmentIds
             };
 
-            await dispatch(createDynamicNotice(noticeData)).unwrap();
-            toast.success("Notice created and dispatched successfully!");
+            console.log('Sending notice data:', JSON.stringify(noticeData, null, 2));
+            console.log('Meeting Link toggle is:', formData.include_meeting ? 'ON' : 'OFF');
+
+            // Create notice - this updates Redux state immediately
+            const createdNotice = await dispatch(createDynamicNotice(noticeData)).unwrap();
+            console.log('Backend response - created notice:', createdNotice);
+            console.log('Notice has meeting_url:', createdNotice.content?.meeting_url || createdNotice.meeting_url || 'NO');
+            
+            // Frontend workaround: Force status to draft since backend ignores it
+            if (createdNotice.id) {
+                dispatch(updateNoticeStatusLocal({ noticeId: createdNotice.id, status: 'draft' }));
+                console.log('Frontend: Updated notice status to draft');
+            }
+            
+            toast.success("Notice created as draft!");
+            console.log('Notice created:', createdNotice);
+            
+            // 3. Create meeting only if include_meeting is selected (FRONTEND handles meeting creation)
+            console.log('Checking include_meeting:', formData.include_meeting);
+            if (formData.include_meeting === true) {
+                console.log('Creating meeting because include_meeting is true');
+                const meetingData = {
+                    case_id: caseId,
+                    scheduled_at: formData.scheduled_date,
+                    notes: `Auto-generated meeting for Notice #${nextNoticeNo}`,
+                    meet_provider: "google_meet"
+                };
+                
+                try {
+                    const createdMeeting = await dispatch(createMeetingAction(meetingData)).unwrap();
+                    toast.success("Meeting scheduled with Google Meet link!");
+                    console.log('Meeting created with links:', createdMeeting);
+                } catch (meetingError) {
+                    console.error("Failed to auto-create meeting:", meetingError);
+                    toast.warning("Notice created but meeting scheduling failed");
+                }
+            }
+
+            // 4. Refresh case details so notice, attachments, and meetings are all updated
+            await dispatch(fetchCaseDetail(caseId));
+            setLoading(false);
             onClose();
         } catch (error) {
             toast.error(error.message || "Failed to create notice");
+            console.error('Error creating notice:', error);
         } finally {
             setLoading(false);
         }
@@ -266,6 +327,27 @@ const AddNoticeModal = ({ isOpen, onClose, caseId, nextNoticeNo }) => {
                                 </div>
                             </section>
                         </div>
+
+                        {/* Scheduled Date & Time - Only shown when Meeting Link is selected */}
+                        {formData.include_meeting && (
+                            <section className="space-y-4 animate-fade-in">
+                                <label className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                    Meeting Date & Time
+                                    <span className="text-red-500">*</span>
+                                    <span className="text-xs font-normal text-gray-500 normal-case">(Required for meeting)</span>
+                                </label>
+                                <input
+                                    type="datetime-local"
+                                    value={formData.scheduled_date}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, scheduled_date: e.target.value }))}
+                                    required={formData.include_meeting}
+                                    className="w-full p-4 text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none dark:text-white"
+                                />
+                                {!formData.scheduled_date && (
+                                    <p className="text-xs text-red-500">Please select when the meeting should be scheduled</p>
+                                )}
+                            </section>
+                        )}
 
                         {/* Custom Message */}
                         <section className="space-y-4">

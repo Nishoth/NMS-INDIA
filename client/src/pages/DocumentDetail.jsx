@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { FiArrowLeft, FiFileText, FiDownload, FiClock, FiUser, FiInfo, FiLoader, FiAlertCircle, FiLink } from "react-icons/fi";
+import { FiArrowLeft, FiFileText, FiDownload, FiClock, FiUser, FiInfo, FiLoader, FiAlertCircle, FiLink, FiUploadCloud } from "react-icons/fi";
 import { useApi } from "../hooks/useApi";
 import toast from "react-hot-toast";
 
@@ -8,7 +8,9 @@ const DocumentDetail = () => {
     const { id } = useParams();
     const [document, setDocument] = useState(null);
     const [loading, setLoading] = useState(true);
-    const { handleRequest, getDocument, downloadDocument } = useApi();
+    const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+    const [uploadedDocuments, setUploadedDocuments] = useState([]);
+    const { handleRequest, getDocument, downloadDocument, uploadDocument } = useApi();
 
     useEffect(() => {
         const fetchDoc = async () => {
@@ -37,6 +39,41 @@ const DocumentDetail = () => {
             window.document.body.appendChild(link);
             link.click();
             link.remove();
+        }
+    };
+
+    const handleSidebarDocumentUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploadingDocument(true);
+
+        try {
+            if (document && document.case_id) {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('category', 'OTHER');
+                const { error } = await handleRequest(() => uploadDocument(document.case_id, formData));
+                if (error) throw new Error(error);
+                toast.success('Document uploaded successfully');
+            } else {
+                // sample fallback for UI demo
+                toast.success('Sample document queued successfully');
+            }
+
+            const newItem = {
+                id: `${Date.now()}`,
+                file_name: file.name,
+                uploaded_at: new Date().toISOString(),
+                source: 'internal'
+            };
+            setUploadedDocuments((prev) => [newItem, ...prev].slice(0, 3));
+        } catch (err) {
+            console.error(err);
+            toast.error('Failed to upload document');
+        } finally {
+            setIsUploadingDocument(false);
+            e.target.value = '';
         }
     };
 
@@ -162,22 +199,59 @@ const DocumentDetail = () => {
 
                 {/* Sidebar Action Center */}
                 <div className="space-y-6">
-                    <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 p-6 rounded-2xl shadow-sm flex flex-col items-center justify-center text-center space-y-4">
-                        <div className="w-16 h-16 bg-white dark:bg-[#1f2937] rounded-full flex items-center justify-center shadow-sm">
-                            <FiDownload className="w-8 h-8 text-primary" />
+                    <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 p-4 rounded-2xl shadow-sm space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Secure Access</h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 max-w-[240px] leading-relaxed">
+                                    Decrypt and download this file directly to your local machine storage buffer.
+                                </p>
+                            </div>
+                            <label className="inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-white dark:bg-[#1f2937] text-xs font-semibold text-primary cursor-pointer border border-primary/20 hover:bg-primary/90 hover:text-white transition-colors">
+                                <FiUploadCloud className="w-3.5 h-3.5" />
+                                {isUploadingDocument ? 'Uploading...' : 'Upload'}
+                                <input
+                                    type="file"
+                                    onChange={handleSidebarDocumentUpload}
+                                    className="hidden"
+                                    accept=".pdf,.doc,.docx,.xls,.xlsx,image/png,image/jpeg,image/jpg"
+                                    disabled={isUploadingDocument}
+                                />
+                            </label>
                         </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Secure Access</h3>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-[200px] leading-relaxed">
-                                Decrypt and download this file directly to your local machine storage buffer.
-                            </p>
+
+                        <div className="flex items-center gap-2 py-2">
+                            <div className="w-10 h-10 bg-white dark:bg-[#1f2937] rounded-full flex items-center justify-center shadow-sm">
+                                <FiDownload className="w-5 h-5 text-primary" />
+                            </div>
+                            <div>
+                                <button
+                                    onClick={handleDocDownload}
+                                    className="px-3 py-2 bg-primary text-white font-semibold rounded-lg hover:bg-primary-dark transition-colors text-xs"
+                                >
+                                    Request Download
+                                </button>
+                            </div>
                         </div>
-                        <button
-                            onClick={handleDocDownload}
-                            className="w-full py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-dark transition-colors shadow-sm flex items-center justify-center gap-2 mt-4"
-                        >
-                            <FiDownload className="w-5 h-5" /> Request Download
-                        </button>
+
+                        <div className="bg-white dark:bg-[#111827] p-3 rounded-xl border border-gray-100 dark:border-white/10">
+                            <div className="flex items-center justify-between mb-2">
+                                <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 font-semibold">Recent uploads (sample)</p>
+                                <span className="text-[10px] text-gray-400">{uploadedDocuments.length}</span>
+                            </div>
+                            <div className="space-y-2 text-left">
+                                {uploadedDocuments.length === 0 ? (
+                                    <div className="text-xs text-gray-500">No recent uploads yet. Use upload button above.</div>
+                                ) : (
+                                    uploadedDocuments.map((row) => (
+                                        <div key={row.id} className="text-xs text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-white/10 rounded-md p-2">
+                                            <div className="font-medium truncate">{row.file_name}</div>
+                                            <div className="text-[10px] text-gray-500 dark:text-gray-400">{new Date(row.uploaded_at).toLocaleTimeString()}</div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
                     </div>
 
                     <div className="bg-white dark:bg-[#1f2937] p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 space-y-3 flex flex-col items-center">

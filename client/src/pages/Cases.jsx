@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
     FiPlus, FiUpload, FiSearch, FiFilter, FiMoreVertical,
     FiList, FiGrid, FiChevronLeft, FiChevronRight, FiHome, FiChevronRight as FiBreadcrumbRight,
-    FiFileText, FiCalendar, FiDollarSign
+    FiFileText, FiCalendar, FiDollarSign, FiUser, FiX
 } from "react-icons/fi";
 import { useApi } from "../hooks/useApi";
 import toast from "react-hot-toast";
@@ -23,6 +23,13 @@ const Cases = () => {
     const [cardPerPage, setCardPerPage] = useState(12);
     const [customPerPage, setCustomPerPage] = useState("");
 
+    // Advocate Assignment State
+    const [advocates, setAdvocates] = useState([]);
+    const [assignModalOpen, setAssignModalOpen] = useState(false);
+    const [selectedCaseId, setSelectedCaseId] = useState(null);
+    const [selectedAdvocate, setSelectedAdvocate] = useState("");
+    const [isAssigning, setIsAssigning] = useState(false);
+
     const getItemsPerPage = () => {
         if (viewMode === "card") return cardPerPage === "All" ? Math.max(1, cases.length) : cardPerPage;
         if (tablePerPage === "All") return Math.max(1, cases.length);
@@ -34,19 +41,32 @@ const Cases = () => {
 
     // Action Dropdown state
     const [openDropdownId, setOpenDropdownId] = useState(null);
+    
+    // Window width state for responsive rendering
+    const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
 
-    // Close dropdown on outside click
+    // Close dropdown on outside click and track window resize
     useEffect(() => {
         const handleClickOutside = (e) => {
-            if (!e.target.closest('.action-dropdown')) {
+            if (!e.target.closest('.action-dropdown') && !e.target.closest('.assign-modal')) {
                 setOpenDropdownId(null);
             }
         };
+        
+        const handleResize = () => {
+            setWindowWidth(window.innerWidth);
+        };
+        
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        window.addEventListener('resize', handleResize);
+        
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            window.removeEventListener('resize', handleResize);
+        };
     }, []);
 
-    const { getCases, handleRequest } = useApi();
+    const { getCases, handleRequest, getUsers, assignAdvocate } = useApi();
 
     const fetchCases = async () => {
         setLoading(true);
@@ -59,9 +79,48 @@ const Cases = () => {
         setLoading(false);
     };
 
+    // Fetch advocates for assignment
+    const fetchAdvocates = async () => {
+        const { data, error } = await handleRequest(() => getUsers("advocate"));
+        if (!error && data) {
+            setAdvocates(data);
+        }
+    };
+
     useEffect(() => {
         fetchCases();
+        fetchAdvocates();
     }, []);
+
+    // Handle advocate assignment
+    const handleOpenAssignModal = (caseId) => {
+        setSelectedCaseId(caseId);
+        setSelectedAdvocate("");
+        setAssignModalOpen(true);
+        setOpenDropdownId(null);
+    };
+
+    const handleCloseAssignModal = () => {
+        setAssignModalOpen(false);
+        setSelectedCaseId(null);
+        setSelectedAdvocate("");
+    };
+
+    const handleAssignAdvocate = async () => {
+        if (!selectedAdvocate || !selectedCaseId) return;
+        
+        setIsAssigning(true);
+        const { error } = await handleRequest(() => assignAdvocate(selectedCaseId, selectedAdvocate));
+        setIsAssigning(false);
+        
+        if (error) {
+            toast.error(error);
+        } else {
+            toast.success("Advocate assigned successfully");
+            handleCloseAssignModal();
+            fetchCases(); // Refresh cases to show updated assignment
+        }
+    };
 
     // 1. Filter Cases
     const filteredCases = cases.filter((c) => {
@@ -228,9 +287,16 @@ const Cases = () => {
                                                     <FiMoreVertical className="w-4 h-4" />
                                                 </button>
                                                 {openDropdownId === c.id && (
-                                                    <div className="absolute right-0 mt-1 w-32 bg-white dark:bg-[#1f2937] rounded-xl shadow-lg border border-gray-100 dark:border-white/10 z-20 py-1">
+                                                    <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-[#1f2937] rounded-xl shadow-lg border border-gray-100 dark:border-white/10 z-20 py-1">
                                                         <Link to={`/cases/${c.id}`} className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5">View Details</Link>
                                                         <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5">Edit</button>
+                                                        <button 
+                                                            onClick={() => handleOpenAssignModal(c.id)}
+                                                            className="w-full text-left px-4 py-2 text-sm text-primary hover:bg-primary/10 dark:text-primary dark:hover:bg-primary/10 flex items-center gap-2"
+                                                        >
+                                                            <FiUser className="w-4 h-4" />
+                                                            Assign Advocate
+                                                        </button>
                                                         <div className="h-px bg-gray-100 dark:bg-white/5 my-1" />
                                                         <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 dark:text-red-400">Delete</button>
                                                     </div>
@@ -333,9 +399,16 @@ const Cases = () => {
                                                                 <FiMoreVertical className="w-4 h-4" />
                                                             </button>
                                                             {openDropdownId === c.id && (
-                                                                <div className="absolute right-0 mt-1 w-32 bg-white dark:bg-[#1f2937] rounded-xl shadow-lg border border-gray-100 dark:border-white/10 z-20 py-1 text-left">
+                                                                <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-[#1f2937] rounded-xl shadow-lg border border-gray-100 dark:border-white/10 z-20 py-1 text-left">
                                                                     <Link to={`/cases/${c.id}`} className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5">View Details</Link>
                                                                     <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5">Edit</button>
+                                                                    <button 
+                                                                        onClick={() => handleOpenAssignModal(c.id)}
+                                                                        className="w-full text-left px-4 py-2 text-sm text-primary hover:bg-primary/10 dark:text-primary dark:hover:bg-primary/10 flex items-center gap-2"
+                                                                    >
+                                                                        <FiUser className="w-4 h-4" />
+                                                                        Assign Advocate
+                                                                    </button>
                                                                     <div className="h-px bg-gray-100 dark:bg-white/5 my-1" />
                                                                     <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 dark:text-red-400">Delete</button>
                                                                 </div>
@@ -476,6 +549,98 @@ const Cases = () => {
                         </div>
                     )}
                 </>
+            )}
+
+            {/* Assign Advocate Modal */}
+            {assignModalOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="assign-modal bg-white dark:bg-[#1f2937] rounded-2xl shadow-xl border border-gray-100 dark:border-white/10 w-full max-w-md p-6 animate-fade-in">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                <FiUser className="text-primary" />
+                                Assign Advocate
+                            </h3>
+                            <button 
+                                onClick={handleCloseAssignModal}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+                            >
+                                <FiX className="w-5 h-5 text-gray-500" />
+                            </button>
+                        </div>
+                        
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                            Select an advocate to assign to this case. Admins and Super Admins can assign any advocate.
+                        </p>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Select Advocate
+                                </label>
+                                <select
+                                    value={selectedAdvocate}
+                                    onChange={(e) => setSelectedAdvocate(e.target.value)}
+                                    className="w-full p-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-gray-900 dark:text-white"
+                                >
+                                    <option value="">-- Select an Advocate --</option>
+                                    {advocates.map((advocate) => (
+                                        <option key={advocate.id} value={advocate.id}>
+                                            {advocate.username} {advocate.email ? `(${advocate.email})` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            
+                            {/* Dummy Advocates for Demo */}
+                            {advocates.length === 0 && (
+                                <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                                    <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                                        <strong>Demo Mode:</strong> No advocates fetched from backend. Showing dummy data:
+                                    </p>
+                                    <select
+                                        value={selectedAdvocate}
+                                        onChange={(e) => setSelectedAdvocate(e.target.value)}
+                                        className="w-full mt-2 p-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white"
+                                    >
+                                        <option value="">-- Select an Advocate --</option>
+                                        <option value="adv-1">John Smith (john@lawfirm.com) - Senior Advocate</option>
+                                        <option value="adv-2">Sarah Johnson (sarah@lawfirm.com) - Junior Advocate</option>
+                                        <option value="adv-3">Michael Brown (michael@lawfirm.com) - Partner</option>
+                                        <option value="adv-4">Emily Davis (emily@lawfirm.com) - Associate</option>
+                                        <option value="adv-5">Robert Wilson (robert@lawfirm.com) - Senior Partner</option>
+                                        <option value="adv-6">Lisa Anderson (lisa@lawfirm.com) - Managing Partner</option>
+                                    </select>
+                                </div>
+                            )}
+                            
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={handleCloseAssignModal}
+                                    className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-white/10 transition-colors font-medium"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleAssignAdvocate}
+                                    disabled={!selectedAdvocate || isAssigning}
+                                    className="flex-1 px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-dark transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {isAssigning ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            Assigning...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FiUser className="w-4 h-4" />
+                                            Assign Advocate
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

@@ -25,6 +25,18 @@ export const createDynamicNotice = createAsyncThunk(
     }
 );
 
+export const createMeeting = createAsyncThunk(
+    'cases/createMeeting',
+    async (meetingData, { rejectWithValue }) => {
+        try {
+            const response = await api.post('/meetings/', meetingData);
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.detail || error.message);
+        }
+    }
+);
+
 const caseSlice = createSlice({
     name: 'cases',
     initialState: {
@@ -35,6 +47,24 @@ const caseSlice = createSlice({
     reducers: {
         clearCurrentCase: (state) => {
             state.currentCase = null;
+        },
+        updateNoticeStatusLocal: (state, action) => {
+            const { noticeId, status, error_message, delivery_status, delivery_channels } = action.payload;
+            if (state.currentCase && state.currentCase.notices) {
+                const notice = state.currentCase.notices.find(n => n.id === noticeId);
+                if (notice) {
+                    notice.status = status;
+                    if (error_message) {
+                        notice.error_message = error_message;
+                    }
+                    if (delivery_status) {
+                        notice.delivery_status = delivery_status;
+                    }
+                    if (delivery_channels) {
+                        notice.delivery_channels = delivery_channels;
+                    }
+                }
+            }
         },
     },
     extraReducers: (builder) => {
@@ -56,9 +86,15 @@ const caseSlice = createSlice({
                     if (!state.currentCase.notices) state.currentCase.notices = [];
                     state.currentCase.notices.push(action.payload);
                 }
+            })
+            .addCase(createMeeting.fulfilled, (state, action) => {
+                if (state.currentCase && state.currentCase.id === action.payload.case_id) {
+                    if (!state.currentCase.meetings) state.currentCase.meetings = [];
+                    state.currentCase.meetings.push(action.payload);
+                }
             });
     },
 });
 
-export const { clearCurrentCase } = caseSlice.actions;
+export const { clearCurrentCase, updateNoticeStatusLocal } = caseSlice.actions;
 export default caseSlice.reducer;
