@@ -16,40 +16,43 @@ const Login = () => {
   // No auto-hints - clean login page
 
   // Attractive dummy users with realistic names - clickable but no action
-  const dummyUsers = useMemo(() => [
-    {
-      id: "1",
-      name: "Rukshan Perera",
-      role: "Super Admin",
-      initials: "RP",
-      avatar: null,
-      color: "bg-blue-600"
-    },
-    {
-      id: "2", 
-      name: "Sarah Johnson",
-      role: "Case Manager",
-      initials: "SJ",
-      avatar: null,
-      color: "bg-emerald-600"
-    },
-    {
-      id: "3",
-      name: "Michael Fernando",
-      role: "Advocate",
-      initials: "MF", 
-      avatar: null,
-      color: "bg-violet-600"
-    },
-    {
-      id: "4",
-      name: "Emily Silva",
-      role: "Staff",
-      initials: "ES",
-      avatar: null,
-      color: "bg-amber-600"
-    }
-  ], []);
+  const dummyUsers = useMemo(
+    () => [
+      {
+        id: "1",
+        name: "Rukshan Perera",
+        role: "Super Admin",
+        initials: "RP",
+        avatar: null,
+        color: "bg-blue-600",
+      },
+      {
+        id: "2",
+        name: "Sarah Johnson",
+        role: "Case Manager",
+        initials: "SJ",
+        avatar: null,
+        color: "bg-emerald-600",
+      },
+      {
+        id: "3",
+        name: "Michael Fernando",
+        role: "Advocate",
+        initials: "MF",
+        avatar: null,
+        color: "bg-violet-600",
+      },
+      {
+        id: "4",
+        name: "Emily Silva",
+        role: "Staff",
+        initials: "ES",
+        avatar: null,
+        color: "bg-amber-600",
+      },
+    ],
+    []
+  );
 
   // Click handler - does nothing (just for visual effect)
   const handleUserClick = () => {
@@ -125,48 +128,6 @@ const Login = () => {
             Sign in using your credentials.
           </p>
 
-          {/* Quick Login Panel - Attractive Dummy Users */}
-          <div className="mb-6 rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-5 shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                <p className="text-sm font-bold text-gray-800">
-                  Quick Login <span className="text-gray-500 font-normal">(Demo Users)</span>
-                </p>
-              </div>
-              <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full font-medium">
-                All Roles
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {dummyUsers.map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={handleUserClick}
-                  className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm hover:shadow-md hover:border-gray-300 transition-all cursor-pointer group"
-                >
-                  <div className={`h-11 w-11 rounded-full ${u.color} text-white flex items-center justify-center text-sm font-bold shadow-md group-hover:scale-110 transition-transform`}>
-                    {u.initials}
-                  </div>
-                  <div className="text-left flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 leading-tight truncate">
-                      {u.name}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5 font-medium">
-                      {u.role}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            <p className="text-xs text-gray-400 mt-4 text-center">
-              Select a user for quick access
-            </p>
-          </div>
-
           {/* FORM */}
           <form className="max-w-xl" onSubmit={handleSubmit}>
             {/* Email */}
@@ -187,7 +148,9 @@ const Login = () => {
 
             {/* Password */}
             <label className="block mb-3">
-              <span className="text-sm font-medium text-gray-700">Password</span>
+              <span className="text-sm font-medium text-gray-700">
+                Password
+              </span>
               <div className="relative mt-2">
                 <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
@@ -204,7 +167,11 @@ const Login = () => {
                   onClick={() => setShowPw((s) => !s)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 grid place-items-center size-9 rounded-md text-gray-700/85 hover:bg-black/5 transition-colors"
                 >
-                  {showPw ? <FiEyeOff className="h-5 w-5" /> : <FiEye className="h-5 w-5" />}
+                  {showPw ? (
+                    <FiEyeOff className="h-5 w-5" />
+                  ) : (
+                    <FiEye className="h-5 w-5" />
+                  )}
                 </button>
               </div>
             </label>
@@ -212,13 +179,21 @@ const Login = () => {
             {/* Remember + Forgot */}
             <div className="flex items-center justify-between mb-3">
               <label className="flex items-center gap-2 text-sm select-none cursor-pointer">
-                <input type="checkbox" defaultChecked className="size-4 rounded accent-primary" />
+                <input
+                  type="checkbox"
+                  defaultChecked
+                  className="size-4 rounded accent-primary"
+                />
                 <span>Remember me</span>
               </label>
               <button
                 type="button"
                 className="text-sm text-gray-700 hover:underline"
-                onClick={() => setError("Please contact Super Admin to reset password (demo).")}
+                onClick={() =>
+                  setError(
+                    "Please contact Super Admin to reset password (demo)."
+                  )
+                }
               >
                 Forgot Password?
               </button>
@@ -242,7 +217,8 @@ const Login = () => {
           <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-gray-500">
             <p>
               Copyright © {new Date().getFullYear()}{" "}
-              <span className="text-primary font-semibold">JLS</span> All rights reserved.
+              <span className="text-primary font-semibold">JLS</span> All rights
+              reserved.
             </p>
             <p className="sm:text-right">
               <a href="#" className="hover:underline">
