@@ -1,87 +1,16 @@
-# JLS Case Management System
+# React + Vite
 
-Full-stack application with a React (Vite) frontend and a Python FastAPI backend.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## Prerequisites
-- Node.js (v18+)
-- Python (3.10+)
-- PostgreSQL
+Currently, two official plugins are available:
 
-## Backend Setup (FastAPI)
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-The backend is located in the `/server` directory.
+## React Compiler
 
-1. **Navigate to the server directory:**
-   ```bash
-   cd server
-   ```
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-2. **Create and activate a virtual environment:**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+## Expanding the ESLint configuration
 
-3. **Install dependencies:**
-   *(Assuming you have a `requirements.txt`. If not, install fastAPI, uvicorn, sqlalchemy, psycopg2-binary, alembic, etc.)*
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Environment Variables Config:**
-   Create a `.env` file in the `/server` directory (you can use the provided `.env.example` if available) and configure your database and JWT secret keys:
-   ```env
-   DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/dbname
-   SECRET_KEY=your_super_secret_key_here
-   ALGORITHM=HS256
-   ACCESS_TOKEN_EXPIRE_MINUTES=1440
-   ```
-
-5. **Run Database Migrations (Alembic):**
-   Apply the initial database schema schemas:
-   ```bash
-   alembic upgrade head
-   ```
-
-6. **Start the FastAPI Server:**
-   ```bash
-   uvicorn main:app --reload --port 8000
-
-   source venv/bin/activate && uvicorn main:app --reload --port 8000
-
-   ```
-   The backend will be available at `http://127.0.0.1:8000/`.
-   API Documentation is automatically generated and accessible at `http://127.0.0.1:8000/docs`.
-
-
-## Frontend Setup (React/Vite)
-
-The frontend is located in the `/client` directory.
-
-1. **Navigate to the client directory:**
-   ```bash
-   cd client
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Environment Variables Config:**
-   Create a `.env` file in the `/client` directory (you can copy `.env.example` if it exists):
-   ```env
-   VITE_API_URL=http://127.0.0.1:8000
-   ```
-
-4. **Start the Development Server:**
-   ```bash
-   npm run dev
-   ```
-   The frontend will be available at `http://localhost:5173/` (or the port specified in terminal).
-
----
-
-## Technical Stack Overview
-- **Frontend**: React 19, Tailwind CSS v4, Vite, Framer Motion, React Router.
-- **Backend**: FastAPI, SQLAlchemy (Async), Alembic (Migrations), JWT Authentication.
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
